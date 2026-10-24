@@ -43,6 +43,8 @@ function googleMessage(params: Record<string, string | string[] | undefined>): {
       return { tone: "bad", lines: ["Google sign-in was cancelled. Nothing changed."] };
     case "expired":
       return { tone: "bad", lines: ["That sign-in took too long or came from another tab. Please try Connect Google again."] };
+    case "error":
+      return { tone: "bad", lines: [`Connect Google hit a problem: ${one("detail") || "unknown error"}`] };
     case "no_refresh_token":
       return { tone: "bad", lines: ["Google didn't grant ongoing access. Try again and tick every box on Google's permission screen."] };
     default:

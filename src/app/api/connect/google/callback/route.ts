@@ -27,6 +27,18 @@ async function google<T>(token: string, url: string): Promise<T> {
 }
 
 export async function GET(request: NextRequest) {
+  try {
+    return await handle(request);
+  } catch (e) {
+    // Show what went wrong on the Connections page instead of a blank 500.
+    const detail = e instanceof Error ? e.message : String(e);
+    if (detail === "NEXT_REDIRECT" || (e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+    console.error("Connect Google failed:", e);
+    return NextResponse.redirect(new URL(`/connections?${new URLSearchParams({ google: "error", detail: detail.slice(0, 300) })}`, request.nextUrl.origin));
+  }
+}
+
+async function handle(request: NextRequest) {
   const origin = request.nextUrl.origin;
   const back = (params: Record<string, string>) => NextResponse.redirect(new URL(`/connections?${new URLSearchParams(params)}`, origin));
 
