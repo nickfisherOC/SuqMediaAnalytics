@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AskPulse } from "@/components/ask-pulse";
 import { NAV } from "@/components/nav";
 import { getAccountStatuses, getAppContext } from "@/lib/data/source";
 import { ControlBar } from "./control-bar";
@@ -53,8 +54,9 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             {(usesSample || ctx.mode === "preview") && <SampleBadge preview={ctx.mode === "preview"} />}
           </div>
         </header>
-        <main className="px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-24">{children}</main>
       </div>
+      <AskPulse />
     </div>
   );
 }
