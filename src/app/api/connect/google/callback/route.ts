@@ -136,11 +136,15 @@ async function handle(request: NextRequest) {
       access,
       "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
     );
-    const item = (ch.items ?? []).find((c) => brandFor(`${c.snippet.title} ${c.snippet.customUrl ?? ""}`) === "peoplesuq") ?? ch.items?.[0];
+    // Only the PeopleSuq channel: never guess with another channel on the same login.
+    const item = (ch.items ?? []).find((c) => brandFor(`${c.snippet.title} ${c.snippet.customUrl ?? ""}`) === "peoplesuq");
     if (item) {
       const id = await save("peoplesuq", "youtube", item.id, item.snippet.customUrl ?? item.snippet.title);
       if (id) newIds.push(id);
-    } else missing.push("a YouTube channel on this Google account");
+    } else {
+      const seen = (ch.items ?? []).map((c) => c.snippet.customUrl ?? c.snippet.title).join(", ") || "none";
+      missing.push(`the PeopleSuq YouTube channel (this login has: ${seen}). Use Connect YouTube and pick the PeopleSuq channel's account`);
+    }
   }
 
   // First backfill straight away, so the dashboard fills in now rather than tonight.

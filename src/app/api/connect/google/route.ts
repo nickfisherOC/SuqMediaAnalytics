@@ -3,7 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { GOOGLE_SCOPES, googleClient } from "@/lib/connectors/google";
 import { getAppContext } from "@/lib/data/source";
 
-/** Starts "Connect Google": admins only. Google sends the person back to /api/connect/google/callback. */
+/**
+ * Starts "Connect Google": admins only. Google sends the person back to
+ * /api/connect/google/callback. `?only=youtube` asks for YouTube alone, so the
+ * person can pick the channel's own (brand) account without touching Analytics.
+ */
 export async function GET(request: NextRequest) {
   try {
     return await handle(request);
@@ -28,7 +32,7 @@ async function handle(request: NextRequest) {
     client_id: googleClient().id,
     redirect_uri: new URL("/api/connect/google/callback", request.nextUrl.origin).toString(),
     response_type: "code",
-    scope: GOOGLE_SCOPES.join(" "),
+    scope: (request.nextUrl.searchParams.get("only") === "youtube" ? GOOGLE_SCOPES.filter((sc) => sc.includes("youtube") || sc.includes("yt-analytics")) : GOOGLE_SCOPES).join(" "),
     // Offline + consent so Google always returns a refresh token for the nightly sync.
     access_type: "offline",
     prompt: "consent select_account",

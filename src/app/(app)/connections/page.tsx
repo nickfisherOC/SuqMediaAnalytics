@@ -20,7 +20,7 @@ const STATUS: Record<AccountStatus["status"], { label: string; color: string }> 
 const NEXT_UP: Partial<Record<string, string>> = {
   ga4: "Connects with the Connect Google button above",
   search_console: "Connects with the Connect Google button above",
-  youtube: "Connects with the Connect Google button above",
+  youtube: "Use Connect YouTube above and pick the PeopleSuq channel",
   tiktok: "Waiting on the TikTok developer app",
 };
 
@@ -77,6 +77,12 @@ async function Connections({ searchParams }: { searchParams: PageProps<"/connect
               className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
             >
               {googleConnected ? "Reconnect Google" : "Connect Google"}
+            </a>
+            <a
+              href="/api/connect/google?only=youtube"
+              className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
+            >
+              Connect YouTube
             </a>
             <RefreshButton />
           </div>
