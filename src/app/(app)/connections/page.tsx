@@ -18,18 +18,46 @@ const STATUS: Record<AccountStatus["status"], { label: string; color: string }> 
 
 /** What's still to come for sources that aren't connected yet. */
 const NEXT_UP: Partial<Record<string, string>> = {
-  ga4: "Connect Google is coming next",
-  search_console: "Connect Google is coming next",
-  youtube: "Connect Google is coming next",
+  ga4: "Connects with the Connect Google button above",
+  search_console: "Connects with the Connect Google button above",
+  youtube: "Connects with the Connect Google button above",
   tiktok: "Waiting on the TikTok developer app",
 };
+
+const GOOGLE_PLATFORMS = ["ga4", "search_console", "youtube"];
+
+/** What happened after Connect Google, from the query string the callback sets. */
+function googleMessage(params: Record<string, string | string[] | undefined>): { tone: "good" | "bad"; lines: string[] } | null {
+  const one = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : "");
+  const status = one("google");
+  if (!status) return null;
+  const split = (k: string) => one(k).split("|").filter(Boolean);
+  switch (status) {
+    case "connected": {
+      const lines = [split("found").length ? `Connected: ${split("found").join(", ")}.` : "Google connected, but no matching accounts were found."];
+      if (split("missing").length) lines.push(`Not found on that Google account: ${split("missing").join(", ")}.`);
+      if (split("failed").length) lines.push(`First sync had problems: ${split("failed").join("; ")}`);
+      return { tone: split("failed").length ? "bad" : "good", lines };
+    }
+    case "cancelled":
+      return { tone: "bad", lines: ["Google sign-in was cancelled. Nothing changed."] };
+    case "expired":
+      return { tone: "bad", lines: ["That sign-in took too long or came from another tab. Please try Connect Google again."] };
+    case "no_refresh_token":
+      return { tone: "bad", lines: ["Google didn't grant ongoing access. Try again and tick every box on Google's permission screen."] };
+    default:
+      return { tone: "bad", lines: ["Only admins can connect accounts."] };
+  }
+}
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString("en-CA", { timeZone: "America/Edmonton", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-async function Connections() {
+async function Connections({ searchParams }: { searchParams: PageProps<"/connections">["searchParams"] }) {
   const ctx = await getAppContext();
   const statuses = await getAccountStatuses();
+  const message = googleMessage(await searchParams);
+  const googleConnected = statuses.some((s) => GOOGLE_PLATFORMS.includes(s.platform) && s.status !== "not_connected");
 
   return (
     <div className="flex flex-col gap-12">
@@ -40,8 +68,26 @@ async function Connections() {
           it&apos;s connected. The sync runs every night around 4am.
         </p>
         {ctx.mode === "live" && ctx.viewer.role === "admin" && (
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-start gap-3">
+            {/* A plain link: this starts a redirect to Google, not a page navigation. */}
+            <a
+              href="/api/connect/google"
+              className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
+            >
+              {googleConnected ? "Reconnect Google" : "Connect Google"}
+            </a>
             <RefreshButton />
+          </div>
+        )}
+        {message && (
+          <div
+            role="status"
+            className="mt-4 max-w-3xl rounded-xl border p-4 text-sm"
+            style={{ borderColor: message.tone === "good" ? "var(--status-good)" : "var(--status-critical)" }}
+          >
+            {message.lines.map((l) => (
+              <p key={l}>{l}</p>
+            ))}
           </div>
         )}
       </header>
@@ -93,10 +139,10 @@ async function Connections() {
   );
 }
 
-export default function Page() {
+export default function Page(props: PageProps<"/connections">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <Connections />
+      <Connections searchParams={props.searchParams} />
     </Suspense>
   );
 }

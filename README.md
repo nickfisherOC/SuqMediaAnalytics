@@ -35,6 +35,7 @@ npm run lint
 | `SUPABASE_SECRET_KEY` | server only | Service key for sync jobs and seeding. Bypasses RLS. |
 | `NEXT_PUBLIC_PULSE_EMAIL_DOMAIN` | browser | Optional. Steers Google's account picker to your Workspace. |
 | `PULSE_ADMIN_EMAILS`, `PULSE_VIEWER_EMAILS` | seed script | Who gets invited |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | server only | Connect Google and the Google sync (same OAuth client as sign-in) |
 | `CRON_SECRET` | server only | Protects the nightly sync URL; Vercel Cron sends it |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | server only | AI layer (phase 5) |
 
@@ -68,8 +69,9 @@ connectors ──► raw_ingest (every API response, untouched)
 ## Connectors and the nightly sync
 
 Live connectors: Facebook Pages, Instagram and Meta Ads (one never-expiring system-user token),
-Shopify (Dev Dashboard app, client credentials) and Lead Rescue (workspace API key). Google and
-TikTok come next. Code lives in [src/lib/connectors](src/lib/connectors); the engine that writes
+Shopify (Dev Dashboard app, client credentials), Lead Rescue (workspace API key) and Google
+(Analytics 4, Search Console, YouTube) via the **Connect Google** button on the Connections page,
+which stores a refresh token per account and backfills from Sep 1. TikTok comes next. Code lives in [src/lib/connectors](src/lib/connectors); the engine that writes
 results, logs `sync_runs` and keeps every response in `raw_ingest` is [src/lib/sync/engine.ts](src/lib/sync/engine.ts).
 
 ```bash
