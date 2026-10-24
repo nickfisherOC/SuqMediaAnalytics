@@ -35,6 +35,7 @@ npm run lint
 | `SUPABASE_SECRET_KEY` | server only | Service key for sync jobs and seeding. Bypasses RLS. |
 | `NEXT_PUBLIC_PULSE_EMAIL_DOMAIN` | browser | Optional. Steers Google's account picker to your Workspace. |
 | `PULSE_ADMIN_EMAILS`, `PULSE_VIEWER_EMAILS` | seed script | Who gets invited |
+| `CRON_SECRET` | server only | Protects the nightly sync URL; Vercel Cron sends it |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | server only | AI layer (phase 5) |
 
 ## How it fits together
@@ -63,6 +64,23 @@ connectors ──► raw_ingest (every API response, untouched)
 - **Schema and security**: [supabase/migrations](supabase/migrations). Invite-only sign-up
   is enforced in the database. Tokens live in Supabase Vault and are readable only by
   the service role. Lead contact details are admin-only. Locked weeks are immutable.
+
+## Connectors and the nightly sync
+
+Live connectors: Facebook Pages, Instagram and Meta Ads (one never-expiring system-user token),
+Shopify (Dev Dashboard app, client credentials) and Lead Rescue (workspace API key). Google and
+TikTok come next. Code lives in [src/lib/connectors](src/lib/connectors); the engine that writes
+results, logs `sync_runs` and keeps every response in `raw_ingest` is [src/lib/sync/engine.ts](src/lib/sync/engine.ts).
+
+```bash
+npm run connect                          # move credentials from .env.local into Supabase Vault
+npm run sync -- --from 2026-10-01        # backfill
+npm run sync -- --platform shopify       # one platform, last 4 days
+```
+
+Vercel Cron calls `/api/cron/sync` every day at 10:00 UTC (about 4am in Edmonton) and re-pulls
+the last 4 days, since platforms revise recent numbers. It needs `CRON_SECRET` set in Vercel.
+Admins can also press **Refresh now** on the Connections page.
 
 ## Add a brand
 

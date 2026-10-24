@@ -10,7 +10,9 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/seed.ts"
+    "seed": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/seed.mts",
+    "connect": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/connect.mts",
+    "sync": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/sync.mts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

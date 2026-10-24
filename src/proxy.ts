@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isPreviewMode, isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
-/** Paths reachable without signing in. */
-const PUBLIC_PATHS = ["/login", "/auth/", "/share/"];
+/** Paths reachable without signing in. (/api/cron/ checks its own secret.) */
+const PUBLIC_PATHS = ["/login", "/auth/", "/share/", "/api/cron/"];
 
 function withNoIndex(res: NextResponse) {
   res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");

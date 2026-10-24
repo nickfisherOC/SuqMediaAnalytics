@@ -68,9 +68,11 @@ export type MetricDef = SummedMetric | RatioMetric;
 
 const SOCIAL: Platform[] = ["facebook", "instagram", "tiktok", "youtube"];
 
+const META_DAYS = "Meta counts days in Pacific time, one hour behind Edmonton.";
+
 const VIEWS_CAVEATS: Partial<Record<Platform, string>> = {
-  facebook: "Facebook counts every view of the Page that day, including old posts.",
-  instagram: "Instagram counts every view of the account that day, including old posts.",
+  facebook: `Facebook counts every view of the Page that day, including old posts and views from ads. ${META_DAYS}`,
+  instagram: `Instagram counts every view of the account that day, including old posts. ${META_DAYS}`,
   tiktok: "TikTok only reports lifetime views per video. Pulse works out daily views from the change in each video's total.",
   youtube: "Channel views per day from YouTube Analytics, which can revise the last 2–3 days.",
 };
@@ -88,6 +90,9 @@ export const METRICS: MetricDef[] = [
     platforms: SOCIAL,
     comparableAcrossPlatforms: true,
     caveats: ["Instagram and TikTok don't report lost followers until an account passes 100 followers."],
+    platformCaveats: {
+      instagram: "Instagram doesn't share past follower counts, so its history starts the day Pulse connected (Oct 24, 2026).",
+    },
   },
 
   // ── Reach and attention ─────────────────────────────────────────────────
@@ -130,7 +135,7 @@ export const METRICS: MetricDef[] = [
     comparableAcrossPlatforms: true,
     platformCaveats: {
       youtube: "YouTube doesn't report saves.",
-      facebook: "Facebook counts reactions as likes.",
+      facebook: "Facebook is reactions plus comments. It doesn't report shares by day, so this runs below Meta Business Suite.",
     },
   },
   {
@@ -214,9 +219,12 @@ export const METRICS: MetricDef[] = [
     kind: "daily_total",
     aggregation: "sum",
     higherIsBetter: true,
-    platforms: ["facebook", "instagram"],
+    platforms: ["instagram"],
     comparableAcrossPlatforms: true,
-    caveats: ["TikTok and YouTube don't report bio link taps. Use store sessions from social instead."],
+    caveats: [
+      "Instagram only: Facebook doesn't report link clicks for Pages any more. Use store visits from social to see the full picture.",
+      "Counts taps on the website link in the profile. Meta Business Suite also counts clicks from ads, so its number is higher.",
+    ],
   },
   {
     key: "posts_published",
@@ -266,7 +274,10 @@ export const METRICS: MetricDef[] = [
     higherIsBetter: true,
     platforms: ["shopify"],
     comparableAcrossPlatforms: true,
-    caveats: ["Shopify and Google Analytics count visits differently, so they won't match exactly."],
+    caveats: [
+      "Shopify and Google Analytics count visits differently, so they won't match exactly.",
+      "Pulse leaves out sudden spikes from one city outside Canada (bots and Meta's link checker). They're listed under Still to fix.",
+    ],
   },
   {
     key: "store_sessions_social",
@@ -612,6 +623,7 @@ export const METRICS: MetricDef[] = [
     key: "quotes_sent",
     label: "Quotes sent",
     definition: "Deals that moved into Quote Sent.",
+    caveats: ["Lead Rescue only shows each deal's current stage, so dates before Pulse connected (Oct 24, 2026) are estimates."],
     unit: "count",
     kind: "daily_total",
     aggregation: "sum",

@@ -46,7 +46,7 @@ export const DEFAULT_BRANDS: BrandSettings[] = [
     website: "https://peoplesuq.com",
     // From peoplesuq.com: purple-500 on bone, purple-400 on ink.
     accent: { light: "#7b2ff0", dark: "#9257f7" },
-    platforms: ["instagram", "facebook", "tiktok", "youtube", "ga4", "search_console", "shopify"],
+    platforms: ["instagram", "facebook", "tiktok", "youtube", "meta_ads", "ga4", "search_console", "shopify"],
     cadence: { postsPerWeek: 7 },
     scoreboard: [
       { metric: "followers", platform: "all", label: "Total followers" },

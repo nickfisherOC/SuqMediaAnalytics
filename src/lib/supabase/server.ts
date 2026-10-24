@@ -1,6 +1,5 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
@@ -20,14 +19,4 @@ export async function createUserClient() {
       },
     },
   });
-}
-
-/**
- * A service-role client for server jobs (sync, seeding, locking). Bypasses
- * RLS, so only use it in code paths that have already checked the caller.
- */
-export function createServiceClient() {
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !key) throw new Error("SUPABASE_SECRET_KEY is not set.");
-  return createClient(supabaseUrl, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }

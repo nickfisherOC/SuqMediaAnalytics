@@ -46,6 +46,7 @@ export interface Flag {
 }
 
 export interface AccountStatus {
+  accountId: string | null;
   brand: string;
   platform: Platform;
   displayName: string | null;
@@ -204,6 +205,7 @@ export async function getAccountStatuses(): Promise<AccountStatus[]> {
   if (ctx.mode === "preview") {
     return expected.map((e) => ({
       ...e,
+      accountId: null,
       displayName: null,
       status: "sample",
       lastSyncedAt: null,
@@ -219,17 +221,28 @@ export async function getAccountStatuses(): Promise<AccountStatus[]> {
     .select("id, brand_id, platform, display_name, status, last_synced_at, last_error");
   if (error) throw error;
 
+  // Rows written by each account's most recent successful sync.
+  const { data: runs } = await supabase
+    .from("sync_runs")
+    .select("account_id, rows_written")
+    .eq("status", "succeeded")
+    .order("finished_at", { ascending: false })
+    .limit(200);
+  const rowsByAccount = new Map<string, number>();
+  for (const r of runs ?? []) if (!rowsByAccount.has(r.account_id)) rowsByAccount.set(r.account_id, r.rows_written ?? 0);
+
   return expected.map((e) => {
     const accounts = data.filter((a) => slugById.get(a.brand_id) === e.brand && a.platform === e.platform);
     // A real connection wins over sample rows.
     const a = accounts.find((x) => x.status !== "sample") ?? accounts[0];
     return {
       ...e,
+      accountId: a?.id ?? null,
       displayName: a?.display_name ?? null,
       status: a?.status ?? "not_connected",
       lastSyncedAt: a?.last_synced_at ?? null,
       lastError: a?.last_error ?? null,
-      rowsLastSync: null,
+      rowsLastSync: a ? (rowsByAccount.get(a.id) ?? null) : null,
     };
   });
 }
