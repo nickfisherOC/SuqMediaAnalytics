@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { channelOf, dailyMetrics } from "./lead-rescue";
 import { excludeSpikes, type CitySessions } from "./shopify";
+import { dailyFromSnapshots } from "./tiktok";
 
 describe("Shopify bot and test traffic", () => {
   const row = (city: string, country: string, sessions: number, date = "2026-10-15", referrer = "social"): CitySessions => ({
@@ -82,5 +83,28 @@ describe("Lead Rescue daily pipeline numbers", () => {
   it("only counts a lead as qualified once it has moved past the first stage", () => {
     expect(v("2026-10-12", "qualified_leads")).toBe(1);
     expect(v("2026-10-13", "qualified_leads")).toBe(0);
+  });
+});
+
+describe("TikTok daily numbers from nightly snapshots", () => {
+  const snap = (views: number, likes = 0) => ({ views, likes, comments: 0, shares: 0 });
+  it("counts the change between consecutive nights", () => {
+    const snaps = new Map([["v1", new Map([["2026-10-24", snap(100, 5)], ["2026-10-25", snap(160, 9)]])]]);
+    const m = dailyFromSnapshots(snaps, new Map([["v1", "2026-10-03"]]), ["2026-10-24", "2026-10-25"]);
+    // Oct 24 has no night before it and the video is old: no number rather than a made-up one.
+    expect(m.filter((p) => p.date === "2026-10-24")).toEqual([]);
+    expect(m.find((p) => p.date === "2026-10-25" && p.metric === "views")!.value).toBe(60);
+    expect(m.find((p) => p.date === "2026-10-25" && p.metric === "engagements")!.value).toBe(4);
+  });
+
+  it("counts a brand-new video from zero", () => {
+    const snaps = new Map([["v2", new Map([["2026-10-25", snap(40)]])]]);
+    const m = dailyFromSnapshots(snaps, new Map([["v2", "2026-10-25"]]), ["2026-10-25"]);
+    expect(m.find((p) => p.metric === "views")!.value).toBe(40);
+  });
+
+  it("never goes negative when TikTok trims a count", () => {
+    const snaps = new Map([["v3", new Map([["2026-10-24", snap(100)], ["2026-10-25", snap(98)]])]]);
+    expect(dailyFromSnapshots(snaps, new Map(), ["2026-10-25"]).find((p) => p.metric === "views")!.value).toBe(0);
   });
 });

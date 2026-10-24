@@ -21,10 +21,32 @@ const NEXT_UP: Partial<Record<string, string>> = {
   ga4: "Connects with the Connect Google button above",
   search_console: "Connects with the Connect Google button above",
   youtube: "Use Connect YouTube above and pick the PeopleSuq channel",
-  tiktok: "Waiting on the TikTok developer app",
+  tiktok: "Use Connect TikTok above",
 };
 
 const GOOGLE_PLATFORMS = ["ga4", "search_console", "youtube"];
+
+/** What happened after Connect TikTok. */
+function tiktokMessage(params: Record<string, string | string[] | undefined>): { tone: "good" | "bad"; lines: string[] } | null {
+  const one = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : "");
+  switch (one("tiktok")) {
+    case "":
+      return null;
+    case "connected": {
+      const lines = [`TikTok connected: ${one("name")}${one("followers") ? ` (${one("followers")} followers)` : ""}. Daily views start tomorrow, once Pulse has two nights of snapshots.`];
+      if (one("failed")) lines.push(`First sync had a problem: ${one("failed")}`);
+      return { tone: one("failed") ? "bad" : "good", lines };
+    }
+    case "cancelled":
+      return { tone: "bad", lines: ["TikTok sign-in was cancelled. Nothing changed."] };
+    case "expired":
+      return { tone: "bad", lines: ["That sign-in took too long or came from another tab. Please try Connect TikTok again."] };
+    case "error":
+      return { tone: "bad", lines: [`Connect TikTok hit a problem: ${one("detail") || "unknown error"}`] };
+    default:
+      return { tone: "bad", lines: ["Only admins can connect accounts."] };
+  }
+}
 
 /** What happened after Connect Google, from the query string the callback sets. */
 function googleMessage(params: Record<string, string | string[] | undefined>): { tone: "good" | "bad"; lines: string[] } | null {
@@ -58,7 +80,8 @@ const fmtTime = (iso: string) =>
 async function Connections({ searchParams }: { searchParams: PageProps<"/connections">["searchParams"] }) {
   const ctx = await getAppContext();
   const statuses = await getAccountStatuses();
-  const message = googleMessage(await searchParams);
+  const params = await searchParams;
+  const message = googleMessage(params) ?? tiktokMessage(params);
   const googleConnected = statuses.some((s) => GOOGLE_PLATFORMS.includes(s.platform) && s.status !== "not_connected");
 
   return (
@@ -83,6 +106,12 @@ async function Connections({ searchParams }: { searchParams: PageProps<"/connect
               className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
             >
               Connect YouTube
+            </a>
+            <a
+              href="/api/connect/tiktok"
+              className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
+            >
+              {statuses.some((s) => s.platform === "tiktok" && s.status !== "not_connected") ? "Reconnect TikTok" : "Connect TikTok"}
             </a>
             <RefreshButton />
           </div>

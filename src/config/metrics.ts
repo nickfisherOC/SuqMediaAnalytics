@@ -73,7 +73,7 @@ const META_DAYS = "Meta counts days in Pacific time, one hour behind Edmonton.";
 const VIEWS_CAVEATS: Partial<Record<Platform, string>> = {
   facebook: `Facebook counts every view of the Page that day, including old posts and views from ads. ${META_DAYS}`,
   instagram: `Instagram counts every view of the account that day, including old posts. ${META_DAYS}`,
-  tiktok: "TikTok only reports lifetime views per video. Pulse works out daily views from the change in each video's total.",
+  tiktok: "TikTok only reports lifetime views per video. Pulse snapshots every video nightly and counts the change, so TikTok's daily numbers start the day after it was connected.",
   youtube: "Channel views per day from YouTube Analytics, which can revise the last 2–3 days.",
 };
 
