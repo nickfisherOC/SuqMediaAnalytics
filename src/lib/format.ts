@@ -35,6 +35,12 @@ export function formatMinutes(mins: number): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+/** Like formatValue but never abbreviated (12,535 rather than 12.5K), for sentences. */
+export function formatExact(value: number | null, unit: Unit): string {
+  if (value !== null && unit === "count") return whole.format(value);
+  return formatValue(value, unit);
+}
+
 /** Signed change in the metric's own unit: "+15", "−$3.20", "+1.2 pts" */
 export function formatDelta(delta: number, unit: Unit): string {
   const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";

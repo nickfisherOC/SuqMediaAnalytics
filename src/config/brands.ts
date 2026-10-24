@@ -91,7 +91,6 @@ export const DEFAULT_BRANDS: BrandSettings[] = [
       { metric: "ad_clicks", platform: "meta_ads", label: "Ad clicks" },
       { metric: "site_sessions", platform: "ga4", label: "Landing page visits" },
       { metric: "leads", platform: "lead_rescue", label: "Leads" },
-      { metric: "leads_contacted", platform: "lead_rescue", label: "Contacted" },
       { metric: "quotes_sent", platform: "lead_rescue", label: "Quote sent" },
       { metric: "deals_won", platform: "lead_rescue", label: "Won" },
     ],

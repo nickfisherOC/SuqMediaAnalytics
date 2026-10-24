@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "seed": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/seed.mts",
     "connect": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/connect.mts",
-    "sync": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/sync.mts"
+    "sync": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/sync.mts",
+    "dev:preview": "node scripts/dev-preview.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

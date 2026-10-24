@@ -1,6 +1,6 @@
 import type { BrandSettings, TileSpec } from "@/config/brands";
 import { caveatsFor, getMetric, type Unit } from "@/config/metrics";
-import type { Platform } from "@/config/platforms";
+import { PLATFORM_INFO, SOCIAL_PLATFORMS, type Platform } from "@/config/platforms";
 import { addDays, type ISODate } from "@/lib/dates";
 import { aggregate, compareValues, MetricStore, type Change, type PlatformScope } from "@/lib/metrics/engine";
 import { rangeLength, type DateRange, type ResolvedCompare, type ResolvedPeriod } from "@/lib/periods";
@@ -46,7 +46,36 @@ export interface WeekPack {
   figures: Record<string, Figure>;
   scoreboard: string[];
   funnel: { label: string; figureId: string }[];
+  /** Per-platform and supporting figures the summary ranks ("Instagram views up 153%"). */
+  details: string[];
+  /** Posts each platform should publish in this period, from the brand's weekly cadence. */
+  cadenceTarget: number;
 }
+
+/** Per-platform metrics worth calling out. */
+const SOCIAL_DETAIL_METRICS = ["followers", "views", "engagements", "comments", "link_clicks", "profile_visits", "posts_published"];
+/** Brand-level metrics worth calling out, when the brand has the platform. */
+const BRAND_DETAIL_METRICS: { metric: string; platform: Platform | "all" }[] = [
+  { metric: "store_sessions_social", platform: "shopify" },
+  { metric: "add_to_cart", platform: "shopify" },
+  { metric: "reached_checkout", platform: "shopify" },
+  { metric: "orders", platform: "shopify" },
+  { metric: "store_revenue", platform: "shopify" },
+  { metric: "site_sessions", platform: "ga4" },
+  { metric: "site_sessions_social", platform: "ga4" },
+  { metric: "search_clicks", platform: "search_console" },
+  { metric: "search_impressions", platform: "search_console" },
+  { metric: "ad_clicks", platform: "meta_ads" },
+  { metric: "meta_leads", platform: "meta_ads" },
+  { metric: "cpm", platform: "meta_ads" },
+  { metric: "leads", platform: "lead_rescue" },
+  { metric: "leads_from_ads", platform: "lead_rescue" },
+  { metric: "cost_per_lead", platform: "all" },
+  { metric: "quotes_sent", platform: "lead_rescue" },
+  { metric: "deals_won", platform: "lead_rescue" },
+  { metric: "revenue_won", platform: "lead_rescue" },
+  { metric: "pipeline_value", platform: "lead_rescue" },
+];
 
 export function figureId(brand: string, metric: string, platform: PlatformScope) {
   return `${brand}.${metric}.${platform}`;
@@ -119,6 +148,19 @@ export function buildWeekPack(
   const scoreboard = brand.scoreboard.map((t) => add(t).id);
   const funnel = brand.funnel.map((s) => ({ label: s.label, figureId: add(s).id }));
 
+  const details: string[] = [];
+  for (const p of brand.platforms) {
+    if (!(SOCIAL_PLATFORMS as readonly string[]).includes(p)) continue;
+    for (const m of SOCIAL_DETAIL_METRICS) {
+      if (!getMetric(m).platforms.includes(p)) continue;
+      details.push(add({ metric: m, platform: p, label: `${PLATFORM_INFO[p].label} ${getMetric(m).label.toLowerCase()}` }).id);
+    }
+  }
+  for (const d of BRAND_DETAIL_METRICS) {
+    const needs = d.platform === "all" ? getMetric(d.metric).platforms : [d.platform];
+    if (needs.every((p) => brand.platforms.includes(p))) details.push(add(d).id);
+  }
+
   return {
     version: PACK_VERSION,
     brand: { slug: brand.slug, name: brand.name },
@@ -129,5 +171,7 @@ export function buildWeekPack(
     figures,
     scoreboard,
     funnel,
+    details,
+    cadenceTarget: Math.round((brand.cadence.postsPerWeek * period.days) / 7),
   };
 }
