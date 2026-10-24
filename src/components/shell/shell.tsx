@@ -16,7 +16,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="lg:grid lg:min-h-dvh lg:grid-cols-[15rem_1fr]">
-      <aside className="hidden border-r border-line bg-surface lg:flex lg:flex-col lg:gap-6 lg:p-4">
+      <aside className="no-print hidden border-r border-line bg-surface lg:flex lg:flex-col lg:gap-6 lg:p-4">
         <Link href="/" className="px-3 pt-2 font-display text-2xl font-extrabold tracking-tight">
           Pulse
         </Link>
@@ -38,7 +38,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0">
-        <header className="z-20 border-b border-line bg-page/95 backdrop-blur lg:sticky lg:top-0">
+        <header className="no-print z-20 border-b border-line bg-page/95 backdrop-blur lg:sticky lg:top-0">
           <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
             <Link href="/" className="font-display text-xl font-extrabold">
               Pulse

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import { tiktokToken, tiktokUser } from "@/lib/connectors/tiktok";
 import { getAppContext } from "@/lib/data/source";
 import { todayInEdmonton, addDays } from "@/lib/dates";
@@ -55,7 +56,8 @@ export async function GET(request: NextRequest) {
     const r = account ? await syncAccount(db, account, addDays(today, -60), today, "backfill") : null;
     return back({ tiktok: "connected", name: user.display_name, followers: String(user.follower_count ?? ""), failed: r && !r.ok ? (r.error ?? "") : "" });
   } catch (e) {
-    if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+    // Let Next.js handle its own signals (redirects, build-time bail-outs).
+    unstable_rethrow(e);
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Connect TikTok failed:", e);
     return back({ tiktok: "error", detail: detail.slice(0, 300) });

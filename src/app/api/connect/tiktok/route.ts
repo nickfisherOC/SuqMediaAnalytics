@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { unstable_rethrow } from "next/navigation";
 import { NextResponse, type NextRequest } from "next/server";
 import { TIKTOK_SCOPES, tiktokClient } from "@/lib/connectors/tiktok";
 import { getAppContext } from "@/lib/data/source";
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
     res.cookies.set("pulse_tiktok_state", state, { httpOnly: true, secure: true, sameSite: "lax", path: "/api/connect/tiktok", maxAge: 600 });
     return res;
   } catch (e) {
-    if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
+    // Let Next.js handle its own signals (redirects, build-time bail-outs).
+    unstable_rethrow(e);
     const detail = e instanceof Error ? e.message : String(e);
     return NextResponse.redirect(new URL(`/connections?${new URLSearchParams({ tiktok: "error", detail: detail.slice(0, 300) })}`, origin));
   }

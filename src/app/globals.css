@@ -130,3 +130,27 @@ body {
 :root[data-theme="dark"] .brand-scope {
   --accent: var(--brand-dark);
 }
+
+/* Export PDF (print): light page, no app chrome, sections kept whole. */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: light;
+    --page: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f2f1ed;
+    --ink: #0a0a0f;
+    --ink-2: #3f3e3b;
+    --muted: #5f5e59;
+    --border: rgba(10, 10, 15, 0.18);
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 12mm;
+  }
+}

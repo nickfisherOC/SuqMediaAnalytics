@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { googleClient } from "@/lib/connectors/google";
 import { getAppContext } from "@/lib/data/source";
@@ -30,9 +31,10 @@ export async function GET(request: NextRequest) {
   try {
     return await handle(request);
   } catch (e) {
+    // Let Next.js handle its own signals (redirects, build-time bail-outs).
+    unstable_rethrow(e);
     // Show what went wrong on the Connections page instead of a blank 500.
     const detail = e instanceof Error ? e.message : String(e);
-    if (detail === "NEXT_REDIRECT" || (e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
     console.error("Connect Google failed:", e);
     return NextResponse.redirect(new URL(`/connections?${new URLSearchParams({ google: "error", detail: detail.slice(0, 300) })}`, request.nextUrl.origin));
   }
