@@ -17,8 +17,9 @@ export const GOOGLE_SCOPES = [
 ];
 
 export function googleClient() {
-  const id = process.env.GOOGLE_CLIENT_ID;
-  const secret = process.env.GOOGLE_CLIENT_SECRET;
+  // Trim: values pasted into a dashboard easily pick up a stray newline.
+  const id = process.env.GOOGLE_CLIENT_ID?.trim();
+  const secret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   if (!id || !secret) throw new ConnectorConfigError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
   return { id, secret };
 }
