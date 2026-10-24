@@ -6,6 +6,7 @@ import { Headline, HighlightList } from "@/components/highlights";
 import { FlagList } from "@/components/flag-list";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { StatTile } from "@/components/stat-tile";
+import { WhatsWinning } from "@/components/whats-winning";
 import { parseControls, type Controls } from "@/lib/controls";
 import { getAppContext } from "@/lib/data/source";
 import { loadWeek } from "@/lib/data/week";
@@ -36,7 +37,7 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
         <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">How the week went</h1>
       </header>
 
-      {weeks.map(({ brand, pack, flags }) => {
+      {weeks.map(({ brand, pack, flags, groups, best }) => {
         const h = buildHighlights(pack);
         return (
           <BrandSection key={brand.slug} brand={brand}>
@@ -57,6 +58,11 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
             </div>
   
             <div>
+              <h3 className="mb-3 text-sm font-semibold tracking-wide text-muted uppercase">What&apos;s winning</h3>
+              <WhatsWinning groups={groups} best={best} />
+            </div>
+
+            <div>
               <h3 className="mb-3 text-sm font-semibold tracking-wide text-muted uppercase">The funnel</h3>
               <Funnel steps={pack.funnel.map((s) => ({ label: s.label, figure: pack.figures[s.figureId] }))} />
             </div>
@@ -72,8 +78,8 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
       <aside className="rounded-2xl border border-dashed border-line p-5 text-sm text-ink-2">
         <p className="font-semibold text-ink">Coming next</p>
         <p className="mt-1">
-          What&apos;s winning (top videos across platforms), meeting notes, action items, presentation mode, locking the
-          week and PDF export. Recommendations come with the AI layer.
+          Meeting notes, action items, presentation mode, locking the week and PDF export. Recommendations and the
+          &quot;what the winners share&quot; read come with the AI layer.
         </p>
       </aside>
     </div>

@@ -5,12 +5,16 @@ import { addDays, minDate } from "@/lib/dates";
 import { MetricStore } from "@/lib/metrics/engine";
 import { buildWeekPack, type WeekPack } from "@/lib/pack";
 import { rangeLength } from "@/lib/periods";
-import { getFlags, getMetricRows, type Flag } from "./source";
+import { bestPerPlatform, groupByDay, type ContentCard, type ContentGroup } from "@/lib/content";
+import { getContent, getFlags, getMetricRows, type Flag } from "./source";
 
 export interface BrandWeek {
   brand: BrandSettings;
   pack: WeekPack;
   flags: Flag[];
+  /** Content published in the period, grouped by day across platforms, most viewed first. */
+  groups: ContentGroup[];
+  best: ContentCard[];
 }
 
 /** Loads exactly the rows the packs need (current period, comparison windows, sparkline history) and builds them. */
@@ -20,7 +24,11 @@ export async function loadWeek(controls: Controls): Promise<BrandWeek[]> {
   const from = [trendStart, ...compare.windows.map((w) => w.from)].reduce(minDate);
   const slugs = brands.map((b) => b.slug);
 
-  const [rows, flags] = await Promise.all([getMetricRows(slugs, from, period.to), getFlags(slugs, period.from, period.to)]);
+  const [rows, flags, content] = await Promise.all([
+    getMetricRows(slugs, from, period.to),
+    getFlags(slugs, period.from, period.to),
+    getContent(slugs, period.from, period.to),
+  ]);
 
   return brands.map((brand) => {
     const store = new MetricStore(rows.filter((r) => r.brand === brand.slug));
@@ -28,6 +36,8 @@ export async function loadWeek(controls: Controls): Promise<BrandWeek[]> {
       brand,
       pack: buildWeekPack(store, brand, period, compare),
       flags: flags.filter((f) => f.brand === brand.slug),
+      groups: groupByDay(brand.slug, content.filter((c) => c.brand === brand.slug)),
+      best: bestPerPlatform(content.filter((c) => c.brand === brand.slug)),
     };
   });
 }

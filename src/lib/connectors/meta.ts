@@ -1,4 +1,5 @@
 import { addDays, eachDay, edmontonDateOf, todayInEdmonton, type ISODate } from "@/lib/dates";
+import { saveContent, type ContentInput } from "./content";
 import { fetchJson } from "./http";
 import { ConnectorConfigError, type Connector, type MetricPoint, type SyncContext } from "./types";
 
@@ -114,6 +115,45 @@ export const facebookPage: Connector = async (ctx) => {
     for (const c of p.comments?.data ?? []) add(edmontonDateOf(c.created_time), "comments");
   }
 
+  // Each Reel's lifetime numbers, for "What's winning".
+  type Reel = { id: string; description?: string; created_time: string; permalink_url?: string; length?: number; picture?: string };
+  const reels = await graphAll<Reel>(
+    ctx,
+    `/${pageId}/video_reels`,
+    { fields: "id,description,created_time,permalink_url,length,picture", since: addDays(todayInEdmonton(), -60), limit: "50" },
+    pageToken,
+  );
+  const items: ContentInput[] = [];
+  for (const r of reels) {
+    const ins = await graph<{ data: { name: string; values: { value: number | Record<string, number> }[] }[] }>(
+      ctx,
+      `/${r.id}/video_insights`,
+      { metric: "fb_reels_total_plays,post_video_avg_time_watched,post_video_likes_by_reaction_type,post_video_social_actions" },
+      pageToken,
+    ).catch(() => ({ data: [] }));
+    const val = (name: string) => ins.data.find((d) => d.name === name)?.values?.[0]?.value;
+    const total = (x: unknown) => (typeof x === "number" ? x : x && typeof x === "object" ? Object.values(x as Record<string, number>).reduce((a, b) => a + b, 0) : null);
+    const social = val("post_video_social_actions") as Record<string, number> | undefined;
+    const c = await graph<{ comments?: { summary?: { total_count: number } } }>(ctx, `/${r.id}`, { fields: "comments.summary(true).limit(0)" }, pageToken).catch(() => ({}) as { comments?: { summary?: { total_count: number } } });
+    items.push({
+      externalId: r.id,
+      url: r.permalink_url ? (r.permalink_url.startsWith("http") ? r.permalink_url : `https://www.facebook.com${r.permalink_url}`) : null,
+      caption: r.description ?? null,
+      publishedAt: r.created_time,
+      format: "reel",
+      durationSeconds: r.length ?? null,
+      thumbnailUrl: r.picture ?? null,
+      snapshot: {
+        views: total(val("fb_reels_total_plays")),
+        likes: total(val("post_video_likes_by_reaction_type")),
+        comments: c.comments?.summary?.total_count ?? null,
+        shares: social?.SHARE ?? 0,
+        extra: { avg_watch_ms: total(val("post_video_avg_time_watched")) },
+      },
+    });
+  }
+  await saveContent(ctx, items);
+
   const days = eachDay(ctx.from, ctx.to);
   const summed = sumPoints(zeroFill(points, days, ["posts_published", "comments", "likes"]));
   // Engagement = reactions + comments. Facebook doesn't report shares by day.
@@ -163,11 +203,65 @@ export const instagram: Connector = async (ctx) => {
     points.push({ date: ctx.to < today ? ctx.to : today, metric: "followers", value: acct.followers_count });
   }
 
-  const media = await graphAll<{ timestamp: string }>(ctx, `/${igId}/media`, { fields: "timestamp", limit: "50" }, token, 5);
+  type Media = {
+    id: string;
+    timestamp: string;
+    caption?: string;
+    media_type: string;
+    media_product_type?: string;
+    permalink?: string;
+    thumbnail_url?: string;
+    media_url?: string;
+    like_count?: number;
+    comments_count?: number;
+  };
+  const media = await graphAll<Media>(
+    ctx,
+    `/${igId}/media`,
+    { fields: "id,timestamp,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,like_count,comments_count", limit: "50" },
+    token,
+    5,
+  );
   for (const m of media) {
     const date = edmontonDateOf(m.timestamp);
     if (date >= ctx.from && date <= ctx.to) points.push({ date, metric: "posts_published", value: 1 });
   }
+
+  // Each post's lifetime numbers, for "What's winning". Last 60 days is plenty: older posts barely move.
+  const recent = media.filter((m) => edmontonDateOf(m.timestamp) >= addDays(today, -60));
+  const items: ContentInput[] = [];
+  for (const m of recent) {
+    const isReel = m.media_product_type === "REELS";
+    const metrics = isReel ? "views,reach,likes,comments,shares,saved,ig_reels_avg_watch_time" : "views,reach,likes,comments,shares,saved";
+    const ins = await graph<{ data: { name: string; values?: { value: number }[]; total_value?: { value: number } }[] }>(
+      ctx,
+      `/${m.id}/insights`,
+      { metric: metrics },
+      token,
+    ).catch(() => ({ data: [] }));
+    const v = (name: string) => {
+      const d = ins.data.find((x) => x.name === name);
+      return d?.values?.[0]?.value ?? d?.total_value?.value ?? null;
+    };
+    items.push({
+      externalId: m.id,
+      url: m.permalink ?? null,
+      caption: m.caption ?? null,
+      publishedAt: m.timestamp,
+      format: isReel ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "photo",
+      thumbnailUrl: m.thumbnail_url ?? (m.media_type === "IMAGE" ? m.media_url : null) ?? null,
+      snapshot: {
+        views: v("views"),
+        reach: v("reach"),
+        likes: v("likes") ?? m.like_count ?? null,
+        comments: v("comments") ?? m.comments_count ?? null,
+        shares: v("shares"),
+        saves: v("saved"),
+        extra: isReel ? { avg_watch_ms: v("ig_reels_avg_watch_time") } : {},
+      },
+    });
+  }
+  await saveContent(ctx, items);
 
   return { metrics: sumPoints(zeroFill(points, eachDay(ctx.from, ctx.to), ["posts_published"])) };
 };

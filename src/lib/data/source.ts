@@ -6,6 +6,7 @@ import { DEFAULT_BRANDS, type BrandSettings } from "@/config/brands";
 import { isPlatform, type Platform } from "@/config/platforms";
 import { addDays, todayInEdmonton, type ISODate } from "@/lib/dates";
 import { isPreviewMode } from "@/lib/env";
+import type { ContentCard } from "@/lib/content";
 import type { MetricRow } from "@/lib/metrics/engine";
 import { generateSampleData } from "@/lib/sample/generate";
 import { createUserClient } from "@/lib/supabase/server";
@@ -245,4 +246,57 @@ export async function getAccountStatuses(): Promise<AccountStatus[]> {
       rowsLastSync: a ? (rowsByAccount.get(a.id) ?? null) : null,
     };
   });
+}
+
+/** Posts and videos published in the range, each with its latest lifetime numbers. */
+export async function getContent(brandSlugs: string[], from: ISODate, to: ISODate): Promise<(ContentCard & { brand: string })[]> {
+  const ctx = await getAppContext();
+  if (ctx.mode === "preview") return [];
+
+  const supabase = await createUserClient();
+  const slugById = new Map(ctx.brands.filter((b) => brandSlugs.includes(b.slug)).map((b) => [b.id!, b.slug]));
+  const { data: items, error } = await supabase
+    .from("content_items")
+    .select("id, brand_id, platform, url, caption, published_date, format, thumbnail_url, status")
+    .in("brand_id", [...slugById.keys()])
+    .gte("published_date", from)
+    .lte("published_date", to)
+    .limit(1000);
+  if (error) throw error;
+  if (!items.length) return [];
+
+  const latest = new Map<string, { captured_on: string; views: number | null; likes: number | null; comments: number | null; shares: number | null }>();
+  for (let i = 0; i < items.length; i += 200) {
+    const { data: snaps, error: sErr } = await supabase
+      .from("content_metrics_snapshots")
+      .select("content_item_id, captured_on, views, likes, comments, shares")
+      .in("content_item_id", items.slice(i, i + 200).map((x) => x.id))
+      .order("captured_on", { ascending: false })
+      .limit(5000);
+    if (sErr) throw sErr;
+    for (const s of snaps) if (!latest.has(s.content_item_id)) latest.set(s.content_item_id, s);
+  }
+
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  return items
+    .filter((it) => isPlatform(it.platform))
+    .map((it) => {
+      const s = latest.get(it.id);
+      return {
+        brand: slugById.get(it.brand_id)!,
+        id: it.id,
+        platform: it.platform as Platform,
+        url: it.url,
+        caption: it.caption,
+        publishedDate: it.published_date,
+        format: it.format,
+        thumbnailUrl: it.thumbnail_url,
+        status: it.status,
+        views: num(s?.views),
+        likes: num(s?.likes),
+        comments: num(s?.comments),
+        shares: num(s?.shares),
+        capturedOn: s?.captured_on ?? null,
+      };
+    });
 }

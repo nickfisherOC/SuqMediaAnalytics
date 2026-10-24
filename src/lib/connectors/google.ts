@@ -1,5 +1,7 @@
 import { addDays, eachDay, edmontonDateOf, todayInEdmonton, type ISODate } from "@/lib/dates";
+import { saveContent, type ContentInput } from "./content";
 import { fetchJson } from "./http";
+import { dailyFromSnapshots } from "./tiktok";
 import { ConnectorConfigError, type Connector, type MetricPoint, type SyncContext } from "./types";
 
 /**
@@ -159,73 +161,153 @@ export const searchConsole: Connector = async (ctx) => {
 };
 
 // ── YouTube ────────────────────────────────────────────────────────────────
+//
+// Two modes. With the channel owner's login, YouTube Analytics gives daily
+// views, watch time and subscriber changes. With anyone else's login (or
+// before the owner connects), only public numbers are available: each video's
+// lifetime views, likes and comments and the current subscriber count. Daily
+// views then come from nightly snapshots, like TikTok. Both modes snapshot
+// every recent video for "What's winning".
 
 export const youtube: Connector = async (ctx) => {
   const token = await googleAccessToken(await ctx.secret("refresh"));
   const channelId = ctx.account.externalId;
+  const days = eachDay(ctx.from, ctx.to);
+  const today = todayInEdmonton();
+  const points: MetricPoint[] = [];
+
+  const ch = await call<{
+    items?: { statistics: { subscriberCount?: string; hiddenSubscriberCount?: boolean }; contentDetails: { relatedPlaylists: { uploads: string } } }[];
+  }>(ctx, token, `https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channelId}`);
+  const item = ch.items?.[0];
+  if (!item) throw new ConnectorConfigError("YouTube: channel not found.");
+  const subscribers = item.statistics.hiddenSubscriberCount ? null : Number(item.statistics.subscriberCount ?? 0);
+
+  // Owner analytics, if this login is allowed to see them.
   type Report = { columnHeaders: { name: string }[]; rows?: (string | number)[][] };
   const metrics = ["views", "estimatedMinutesWatched", "likes", "comments", "shares", "subscribersGained", "subscribersLost"];
-  const rep = await call<Report>(
-    ctx,
-    token,
-    `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${ctx.from}&endDate=${ctx.to}&dimensions=day&metrics=${metrics.join(",")}&sort=day`,
-  );
-  const idx = Object.fromEntries(rep.columnHeaders.map((h, i) => [h.name, i]));
-  const days = eachDay(ctx.from, ctx.to);
-  const points: MetricPoint[] = [];
-  const netSubs = new Map<ISODate, number>();
-  for (const r of rep.rows ?? []) {
-    const date = String(r[idx.day]);
-    const v = (name: string) => Number(r[idx[name]] ?? 0);
-    points.push(
-      { date, metric: "views", value: v("views") },
-      { date, metric: "watch_minutes", value: v("estimatedMinutesWatched") },
-      { date, metric: "likes", value: v("likes") },
-      { date, metric: "comments", value: v("comments") },
-      { date, metric: "shares", value: v("shares") },
-      { date, metric: "engagements", value: v("likes") + v("comments") + v("shares") },
-    );
-    netSubs.set(date, v("subscribersGained") - v("subscribersLost"));
-  }
-  // YouTube Analytics lags a day or two; only zero-fill up to the last day it reported.
-  const lastReported = (rep.rows ?? []).reduce((m, r) => (String(r[idx.day]) > m ? String(r[idx.day]) : m), "");
-  if (lastReported) points.push(...zeros(eachDay(ctx.from, lastReported), ["views", "watch_minutes", "likes", "comments", "shares", "engagements"]));
-
-  // Subscribers: today's count, walked back through each day's net change.
-  const ch = await call<{ items?: { statistics: { subscriberCount: string }; contentDetails: { relatedPlaylists: { uploads: string } } }[] }>(
-    ctx,
-    token,
-    `https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channelId}`,
-  );
-  const item = ch.items?.[0];
-  if (!item) throw new ConnectorConfigError("YouTube: channel not found for this Google account.");
-  const today = todayInEdmonton();
-  let subs = Number(item.statistics.subscriberCount);
-  for (let d = today; d >= ctx.from; d = addDays(d, -1)) {
-    if (d <= ctx.to) points.push({ date: d, metric: "followers", value: subs });
-    subs -= netSubs.get(d) ?? 0;
-  }
-
-  // Uploads per day (Shorts and long-form).
-  const uploads = item.contentDetails.relatedPlaylists.uploads;
-  let pageToken = "";
-  for (let i = 0; i < 10; i++) {
-    const pl = await call<{ items?: { contentDetails: { videoPublishedAt?: string } }[]; nextPageToken?: string }>(
+  let report: Report | null = null;
+  if (!ctx.account.settings.public_only) {
+    report = await call<Report>(
       ctx,
       token,
-      `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${uploads}${pageToken ? `&pageToken=${pageToken}` : ""}`,
-    );
-    let older = false;
-    for (const it of pl.items ?? []) {
-      const at = it.contentDetails.videoPublishedAt;
-      if (!at) continue;
-      const date = edmontonDateOf(at);
-      if (date < ctx.from) older = true;
-      else if (date <= ctx.to) points.push({ date, metric: "posts_published", value: 1 });
+      `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==${channelId}&startDate=${ctx.from}&endDate=${ctx.to}&dimensions=day&metrics=${metrics.join(",")}&sort=day`,
+    ).catch((e) => {
+      if (e instanceof ConnectorConfigError) return null; // not the owner: fall back to public numbers
+      throw e;
+    });
+  }
+
+  if (report) {
+    const idx = Object.fromEntries(report.columnHeaders.map((h, i) => [h.name, i]));
+    const netSubs = new Map<ISODate, number>();
+    for (const r of report.rows ?? []) {
+      const date = String(r[idx.day]);
+      const v = (name: string) => Number(r[idx[name]] ?? 0);
+      points.push(
+        { date, metric: "views", value: v("views") },
+        { date, metric: "watch_minutes", value: v("estimatedMinutesWatched") },
+        { date, metric: "likes", value: v("likes") },
+        { date, metric: "comments", value: v("comments") },
+        { date, metric: "shares", value: v("shares") },
+        { date, metric: "engagements", value: v("likes") + v("comments") + v("shares") },
+      );
+      netSubs.set(date, v("subscribersGained") - v("subscribersLost"));
     }
-    if (older || !pl.nextPageToken) break;
+    // YouTube Analytics lags a day or two; only zero-fill up to the last day it reported.
+    const lastReported = (report.rows ?? []).reduce((m, r) => (String(r[idx.day]) > m ? String(r[idx.day]) : m), "");
+    if (lastReported) points.push(...zeros(eachDay(ctx.from, lastReported), ["views", "watch_minutes", "likes", "comments", "shares", "engagements"]));
+    // Subscriber history: today's count walked back through each day's net change.
+    if (subscribers !== null) {
+      let subs = subscribers;
+      for (let d = today; d >= ctx.from; d = addDays(d, -1)) {
+        if (d <= ctx.to) points.push({ date: d, metric: "followers", value: subs });
+        subs -= netSubs.get(d) ?? 0;
+      }
+    }
+  } else if (subscribers !== null && ctx.to >= addDays(today, -1)) {
+    points.push({ date: ctx.to < today ? ctx.to : today, metric: "followers", value: subscribers });
+  }
+
+  // Uploads (Shorts and long-form), newest first.
+  const uploads: { id: string; publishedAt: string }[] = [];
+  let pageToken = "";
+  for (let i = 0; i < 10; i++) {
+    const pl = await call<{ items?: { contentDetails: { videoId: string; videoPublishedAt?: string } }[]; nextPageToken?: string }>(
+      ctx,
+      token,
+      `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${item.contentDetails.relatedPlaylists.uploads}${pageToken ? `&pageToken=${pageToken}` : ""}`,
+    );
+    for (const it of pl.items ?? []) {
+      if (it.contentDetails.videoPublishedAt) uploads.push({ id: it.contentDetails.videoId, publishedAt: it.contentDetails.videoPublishedAt });
+    }
+    const oldest = uploads.at(-1)?.publishedAt;
+    if (!pl.nextPageToken || (oldest && edmontonDateOf(oldest) < addDays(ctx.from, -60))) break;
     pageToken = pl.nextPageToken;
   }
-  points.push(...zeros(days, ["posts_published"]));
-  return { metrics: sum(points) };
+  const posted = new Map<ISODate, number>(days.map((d) => [d, 0]));
+  for (const u of uploads) {
+    const d = edmontonDateOf(u.publishedAt);
+    if (posted.has(d)) posted.set(d, posted.get(d)! + 1);
+  }
+  for (const [date, value] of posted) points.push({ date, metric: "posts_published", value });
+
+  // Each recent video's public totals, 50 at a time.
+  type Video = {
+    id: string;
+    snippet: { title: string; publishedAt: string; thumbnails?: Record<string, { url: string }> };
+    statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
+    contentDetails: { duration: string };
+    status?: { privacyStatus?: string };
+  };
+  const recent = uploads.filter((u) => edmontonDateOf(u.publishedAt) >= addDays(today, -60));
+  const items: ContentInput[] = [];
+  for (let i = 0; i < recent.length; i += 50) {
+    const ids = recent.slice(i, i + 50).map((b) => b.id).join(",");
+    const vids = await call<{ items?: Video[] }>(ctx, token, `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${ids}`);
+    for (const v of vids.items ?? []) {
+      const secs = isoDurationSeconds(v.contentDetails.duration);
+      const privacy = v.status?.privacyStatus;
+      items.push({
+        externalId: v.id,
+        url: secs <= 180 ? `https://www.youtube.com/shorts/${v.id}` : `https://www.youtube.com/watch?v=${v.id}`,
+        caption: v.snippet.title,
+        publishedAt: v.snippet.publishedAt,
+        format: secs <= 180 ? "short" : "video",
+        durationSeconds: secs,
+        thumbnailUrl: v.snippet.thumbnails?.high?.url ?? v.snippet.thumbnails?.default?.url ?? null,
+        status: privacy === "unlisted" ? "unlisted" : privacy === "private" ? "private" : "published",
+        snapshot: { views: Number(v.statistics.viewCount ?? 0), likes: Number(v.statistics.likeCount ?? 0), comments: Number(v.statistics.commentCount ?? 0) },
+      });
+    }
+  }
+  const saved = await saveContent(ctx, items);
+
+  // Public mode: daily numbers from the change between nightly snapshots.
+  if (!report && saved.size) {
+    const ids = [...saved.values()].map((s) => s.id);
+    const { data, error } = await ctx.db
+      .from("content_metrics_snapshots")
+      .select("content_item_id, captured_on, views, likes, comments, shares")
+      .in("content_item_id", ids)
+      .gte("captured_on", addDays(ctx.from, -1))
+      .lte("captured_on", ctx.to);
+    if (error) throw error;
+    const snaps = new Map<string, Map<ISODate, { views: number; likes: number; comments: number; shares: number }>>();
+    for (const r of data) {
+      let m = snaps.get(r.content_item_id);
+      if (!m) snaps.set(r.content_item_id, (m = new Map()));
+      m.set(r.captured_on, { views: Number(r.views ?? 0), likes: Number(r.likes ?? 0), comments: Number(r.comments ?? 0), shares: Number(r.shares ?? 0) });
+    }
+    points.push(...dailyFromSnapshots(snaps, new Map([...saved.values()].map((s) => [s.id, s.publishedDate])), days));
+  }
+
+  return { metrics: sum(points), extraRows: items.length };
 };
+
+/** "PT1M5S" → 65. */
+export function isoDurationSeconds(d: string): number {
+  const m = /P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d);
+  if (!m) return 0;
+  return Number(m[1] ?? 0) * 86400 + Number(m[2] ?? 0) * 3600 + Number(m[3] ?? 0) * 60 + Number(m[4] ?? 0);
+}
