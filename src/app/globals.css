@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/*
+ * Theme tokens. Base surfaces come from peoplesuq.com (ink #0a0a0f, bone
+ * #f6f5f2). Chart series and status colours are the validated data-viz
+ * palette: platform slots 1–4 pass colour-blind separation in both themes.
+ * Dark values are their own steps, not an automatic inversion.
+ */
+
+:root {
+  color-scheme: light;
+  --page: #f6f5f2;
+  --surface: #fcfcfb;
+  --surface-2: #efeee9;
+  --ink: #0a0a0f;
+  --ink-2: #52514e;
+  --muted: #6b6a65;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(10, 10, 15, 0.1);
+  --focus: #7b2ff0;
+
+  --series-1: #2a78d6; /* Facebook */
+  --series-2: #eb6834; /* Instagram */
+  --series-3: #1baf7a; /* TikTok */
+  --series-4: #eda100; /* YouTube */
+  --series-muted: #b5b4ad;
+
+  --good-text: #006300;
+  --bad-text: #b8302f;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  --accent: #7b2ff0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0a0a0f;
+    --surface: #131318;
+    --surface-2: #1e1e26;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #9a998f;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --focus: #9257f7;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-muted: #4a4a46;
+    --good-text: #0ca30c;
+    --bad-text: #e66767;
+    --accent: #9257f7;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0a0a0f;
+  --surface: #131318;
+  --surface-2: #1e1e26;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #9a998f;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --focus: #9257f7;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-muted: #4a4a46;
+  --good-text: #0ca30c;
+  --bad-text: #e66767;
+  --accent: #9257f7;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-good: var(--good-text);
+  --color-bad: var(--bad-text);
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Per-brand accent: a section sets --brand-light / --brand-dark inline. */
+.brand-scope {
+  --accent: var(--brand-light);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .brand-scope {
+    --accent: var(--brand-dark);
+  }
+}
+:root[data-theme="dark"] .brand-scope {
+  --accent: var(--brand-dark);
+}
