@@ -36,9 +36,10 @@ export const COMPARE_LABELS: Record<CompareKey, string> = {
 };
 
 /**
- * The meeting is on Mondays, so the default is the last complete Mon–Sun week.
+ * Meetings move around, so the default is the latest seven complete days
+ * (up to yesterday), compared with the seven days before.
  */
-export const DEFAULT_PERIOD: PeriodKey = "last_week";
+export const DEFAULT_PERIOD: PeriodKey = "last_7";
 export const DEFAULT_COMPARE: CompareKey = "previous";
 
 export interface ResolvedPeriod extends DateRange {

@@ -53,8 +53,8 @@ describe("resolvePeriod", () => {
   });
 
   it("falls back to the default for an invalid custom range", () => {
-    expect(resolvePeriod("custom", TODAY, { from: "2026-10-10", to: "2026-10-01" }).key).toBe("last_week");
-    expect(resolvePeriod("custom", TODAY, { from: "nope", to: "2026-10-01" }).key).toBe("last_week");
+    expect(resolvePeriod("custom", TODAY, { from: "2026-10-10", to: "2026-10-01" }).key).toBe("last_7");
+    expect(resolvePeriod("custom", TODAY, { from: "nope", to: "2026-10-01" }).key).toBe("last_7");
     expect(resolvePeriod("custom", TODAY, { from: "2026-10-01", to: "2026-10-31" })).toMatchObject({
       key: "custom",
       days: 31,

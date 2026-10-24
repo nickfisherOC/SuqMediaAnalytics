@@ -84,7 +84,7 @@ export function ControlBar({ brands, today }: Props) {
         >
           {PERIOD_KEYS.map((k) => (
             <option key={k} value={k}>
-              {k === "last_week" ? "Last week (Mon–Sun)" : k === "this_week" ? "This week so far" : PERIOD_LABELS[k]}
+              {k === "last_week" ? "Last week (Mon–Sun)" : k === "this_week" ? "This week so far" : k === "last_7" ? "Last 7 days (to yesterday)" : PERIOD_LABELS[k]}
             </option>
           ))}
         </select>
