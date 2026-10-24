@@ -129,7 +129,7 @@ function addUsage(u: Usage, r: Anthropic.Beta.BetaUsage) {
   u.cacheRead += r.cache_read_input_tokens ?? 0;
 }
 
-const cost = (u: Usage) => u.input * PRICE.input + u.output * PRICE.output + u.cacheWrite * PRICE.cacheWrite + u.cacheRead * PRICE.cacheRead;
+export const cost = (u: Usage) => u.input * PRICE.input + u.output * PRICE.output + u.cacheWrite * PRICE.cacheWrite + u.cacheRead * PRICE.cacheRead;
 
 export function hashInput(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 32);

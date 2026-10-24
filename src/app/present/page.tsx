@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Presentation" };
 
 async function Presentation({ searchParams }: { searchParams: PageProps<"/present">["searchParams"] }) {
   const params = await searchParams;
-  const { controls, reviews, actionItems, notes } = await loadReviewPage(params);
+  const { controls, reviews, actionItems, notes, ai } = await loadReviewPage(params);
   const range = formatRange(controls.period.from, controls.period.to);
   const query = new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString();
 
@@ -24,7 +24,7 @@ async function Presentation({ searchParams }: { searchParams: PageProps<"/presen
           <ul className="flex flex-col gap-3 text-2xl text-ink-2">
             {reviews.map((r) => (
               <li key={r.brand.slug}>
-                <span className="font-semibold text-ink">{r.brand.name}:</span> {r.highlights.headline}
+                <span className="font-semibold text-ink">{r.brand.name}:</span> {ai[r.brand.slug]?.narrative?.headline ?? r.highlights.headline}
               </li>
             ))}
           </ul>
@@ -34,7 +34,7 @@ async function Presentation({ searchParams }: { searchParams: PageProps<"/presen
   ];
 
   for (const r of reviews) {
-    for (const s of brandSections(r)) {
+    for (const s of brandSections(r, { ai: ai[r.brand.slug], presenting: true })) {
       slides.push({ key: `${r.brand.slug}-${s.key}`, kicker: `${r.brand.name} · ${s.title}`, accent: r.brand.accent, node: s.node });
     }
   }

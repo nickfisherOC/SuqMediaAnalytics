@@ -3,13 +3,16 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { DEFAULT_BRANDS, type BrandSettings } from "@/config/brands";
-import { isPlatform, type Platform } from "@/config/platforms";
+import type { Platform } from "@/config/platforms";
 import { addDays, todayInEdmonton, type ISODate } from "@/lib/dates";
 import { isPreviewMode } from "@/lib/env";
 import type { ContentCard } from "@/lib/content";
 import type { MetricRow } from "@/lib/metrics/engine";
 import { generateSampleData } from "@/lib/sample/generate";
 import { createUserClient } from "@/lib/supabase/server";
+import { queryBrands, queryContent, queryFlags, queryMetricRows, type Flag } from "./queries";
+
+export type { Flag };
 
 /**
  * Where the app's data comes from. In preview mode (no Supabase configured,
@@ -33,19 +36,6 @@ export interface AppContext {
   today: ISODate;
 }
 
-export interface Flag {
-  id: string;
-  brand: string;
-  platform: Platform | null;
-  kind: string;
-  severity: "info" | "warning" | "serious";
-  dateFrom: ISODate | null;
-  dateTo: ISODate | null;
-  title: string;
-  detail: string | null;
-  isSample: boolean;
-}
-
 export interface AccountStatus {
   accountId: string | null;
   brand: string;
@@ -60,37 +50,6 @@ export interface AccountStatus {
 const PREVIEW_VIEWER: Viewer = { id: "preview", email: "preview@localhost", name: "Preview", role: "admin" };
 
 const sampleFor = cache((today: ISODate) => generateSampleData(addDays(today, -1)));
-
-interface BrandRow {
-  id: string;
-  slug: string;
-  name: string;
-  short_name: string;
-  website: string | null;
-  accent_light: string;
-  accent_dark: string;
-  platforms: string[];
-  cadence_posts_per_week: number;
-  scoreboard: BrandSettings["scoreboard"];
-  funnel: BrandSettings["funnel"];
-  active: boolean;
-}
-
-function toBrand(r: BrandRow): BrandSettings {
-  return {
-    id: r.id,
-    slug: r.slug,
-    name: r.name,
-    shortName: r.short_name,
-    website: r.website,
-    accent: { light: r.accent_light, dark: r.accent_dark },
-    platforms: r.platforms.filter(isPlatform),
-    cadence: { postsPerWeek: Number(r.cadence_posts_per_week) },
-    scoreboard: r.scoreboard,
-    funnel: r.funnel,
-    active: r.active,
-  };
-}
 
 /** Who's signed in and which brands exist. Cached for the request. */
 export const getAppContext = cache(async (): Promise<AppContext> => {
@@ -107,22 +66,13 @@ export const getAppContext = cache(async (): Promise<AppContext> => {
   const { data: profile } = await supabase.from("profiles").select("id, email, full_name, role").eq("id", userId).maybeSingle();
   if (!profile) redirect("/login?error=not_invited");
 
-  const { data: brandRows, error } = await supabase
-    .from("brands")
-    .select("*")
-    .eq("active", true)
-    .order("sort_order");
-  if (error) throw error;
-
   return {
     mode: "live",
     viewer: { id: profile.id, email: profile.email, name: profile.full_name, role: profile.role as Role },
-    brands: (brandRows as BrandRow[]).map(toBrand),
+    brands: await queryBrands(supabase),
     today,
   };
 });
-
-const PAGE = 1000;
 
 /** Daily metric rows for the given brands and date range. */
 export async function getMetricRows(brandSlugs: string[], from: ISODate, to: ISODate): Promise<MetricRow[]> {
@@ -130,39 +80,7 @@ export async function getMetricRows(brandSlugs: string[], from: ISODate, to: ISO
   if (ctx.mode === "preview") {
     return sampleFor(ctx.today).rows.filter((r) => brandSlugs.includes(r.brand) && r.date >= from && r.date <= to);
   }
-
-  const supabase = await createUserClient();
-  const idToSlug = new Map(
-    ctx.brands.filter((b) => brandSlugs.includes(b.slug)).map((b) => [b.id, b.slug]),
-  );
-  const out: MetricRow[] = [];
-  // PostgREST caps responses, so page through.
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from("metric_daily")
-      .select("brand_id, platform, date, metric_key, value, is_sample")
-      .in("brand_id", [...idToSlug.keys()])
-      .gte("date", from)
-      .lte("date", to)
-      .order("date")
-      .order("account_id")
-      .order("metric_key")
-      .range(offset, offset + PAGE - 1);
-    if (error) throw error;
-    for (const r of data) {
-      if (!isPlatform(r.platform)) continue;
-      out.push({
-        brand: idToSlug.get(r.brand_id)!,
-        platform: r.platform,
-        date: r.date,
-        metric: r.metric_key,
-        value: Number(r.value),
-        isSample: r.is_sample,
-      });
-    }
-    if (data.length < PAGE) break;
-  }
-  return out;
+  return queryMetricRows(await createUserClient(), ctx.brands, brandSlugs, from, to);
 }
 
 /** Open data-quality flags overlapping the range. */
@@ -173,29 +91,7 @@ export async function getFlags(brandSlugs: string[], from: ISODate, to: ISODate)
       .flags.filter((f) => brandSlugs.includes(f.brand) && f.dateFrom <= to && f.dateTo >= from)
       .map((f, i) => ({ ...f, id: `sample-${i}`, isSample: true }));
   }
-
-  const supabase = await createUserClient();
-  const slugById = new Map(ctx.brands.map((b) => [b.id, b.slug]));
-  const { data, error } = await supabase
-    .from("data_flags")
-    .select("id, brand_id, platform, kind, severity, date_from, date_to, title, detail, is_sample")
-    .is("resolved_at", null);
-  if (error) throw error;
-  return data
-    .filter((f) => !f.brand_id || brandSlugs.includes(slugById.get(f.brand_id) ?? ""))
-    .filter((f) => (!f.date_from || f.date_from <= to) && (!f.date_to || f.date_to >= from))
-    .map((f) => ({
-      id: f.id,
-      brand: slugById.get(f.brand_id) ?? "",
-      platform: f.platform && isPlatform(f.platform) ? f.platform : null,
-      kind: f.kind,
-      severity: f.severity,
-      dateFrom: f.date_from,
-      dateTo: f.date_to,
-      title: f.title,
-      detail: f.detail,
-      isSample: f.is_sample,
-    }));
+  return queryFlags(await createUserClient(), ctx.brands, brandSlugs, from, to);
 }
 
 /** Connection status for every brand × platform the brands use. */
@@ -252,51 +148,8 @@ export async function getAccountStatuses(): Promise<AccountStatus[]> {
 export async function getContent(brandSlugs: string[], from: ISODate, to: ISODate): Promise<(ContentCard & { brand: string })[]> {
   const ctx = await getAppContext();
   if (ctx.mode === "preview") return [];
-
-  const supabase = await createUserClient();
-  const slugById = new Map(ctx.brands.filter((b) => brandSlugs.includes(b.slug)).map((b) => [b.id!, b.slug]));
-  const { data: items, error } = await supabase
-    .from("content_items")
-    .select("id, brand_id, platform, url, caption, published_date, format, thumbnail_url, status")
-    .in("brand_id", [...slugById.keys()])
-    .gte("published_date", from)
-    .lte("published_date", to)
-    .limit(1000);
-  if (error) throw error;
-  if (!items.length) return [];
-
-  const latest = new Map<string, { captured_on: string; views: number | null; likes: number | null; comments: number | null; shares: number | null }>();
-  for (let i = 0; i < items.length; i += 200) {
-    const { data: snaps, error: sErr } = await supabase
-      .from("content_metrics_snapshots")
-      .select("content_item_id, captured_on, views, likes, comments, shares")
-      .in("content_item_id", items.slice(i, i + 200).map((x) => x.id))
-      .order("captured_on", { ascending: false })
-      .limit(5000);
-    if (sErr) throw sErr;
-    for (const s of snaps) if (!latest.has(s.content_item_id)) latest.set(s.content_item_id, s);
-  }
-
-  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-  return items
-    .filter((it) => isPlatform(it.platform))
-    .map((it) => {
-      const s = latest.get(it.id);
-      return {
-        brand: slugById.get(it.brand_id)!,
-        id: it.id,
-        platform: it.platform as Platform,
-        url: it.url,
-        caption: it.caption,
-        publishedDate: it.published_date,
-        format: it.format,
-        thumbnailUrl: it.thumbnail_url,
-        status: it.status,
-        views: num(s?.views),
-        likes: num(s?.likes),
-        comments: num(s?.comments),
-        shares: num(s?.shares),
-        capturedOn: s?.captured_on ?? null,
-      };
-    });
+  return queryContent(await createUserClient(), ctx.brands, brandSlugs, from, to);
 }
+
+/** loadWeek's reader for pages: the signed-in user's view, or sample data in preview mode. */
+export const userWeekReader = { metricRows: getMetricRows, flags: getFlags, content: getContent };

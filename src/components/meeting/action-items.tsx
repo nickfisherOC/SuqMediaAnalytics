@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { addActionItem, setActionStatus } from "@/app/(app)/review-actions";
 import type { ActionItem } from "@/lib/data/meeting";
+import { OUTCOME_LABEL } from "@/lib/outcomes";
 
 export interface TargetOption {
   id: string;
@@ -40,9 +41,16 @@ function ItemRow({ item, targets }: { item: ActionItem; targets: Map<string, Tar
       <div className="min-w-0">
         <p className={`font-semibold ${item.status === "dropped" ? "text-muted line-through" : ""}`}>{item.title}</p>
         <p className="text-xs text-muted">
-          {[item.ownerName ?? "No owner yet", item.dueDate ? `due ${item.dueDate}` : null, `added ${item.createdOn}`].filter(Boolean).join(" · ")}
+          {[item.ownerName ?? "No owner yet", item.dueDate ? `due ${item.dueDate}` : null, `added ${item.createdOn}`, item.fromAi ? "Pulse AI idea" : null]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
         <Progress item={item} targets={targets} />
+        {item.outcome && item.outcome !== "too_early" && (
+          <p className={`text-xs font-semibold ${item.outcome === "worked" ? "text-good" : item.outcome === "worse" ? "text-bad" : "text-ink-2"}`}>
+            Two-week check: {OUTCOME_LABEL[item.outcome]}
+          </p>
+        )}
       </div>
       <div className="flex gap-1" role="group" aria-label={`Status of ${item.title}`}>
         {(["open", "done", "dropped"] as const).map((s) => (
@@ -63,7 +71,7 @@ function ItemRow({ item, targets }: { item: ActionItem; targets: Map<string, Tar
 }
 
 /** One running list: open items until they're done, plus what was finished in the last two weeks. */
-export function ActionItems({ items, targets }: { items: ActionItem[]; targets: TargetOption[] }) {
+export function ActionItems({ items, targets, period }: { items: ActionItem[]; targets: TargetOption[]; period: { from: string; to: string } }) {
   const byId = new Map(targets.map((t) => [t.id, t]));
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -90,7 +98,11 @@ export function ActionItems({ items, targets }: { items: ActionItem[]; targets: 
         ref={form}
         action={(fd) => {
           const target = byId.get(String(fd.get("target") ?? ""));
-          if (target?.value !== null && target?.value !== undefined) fd.set("baseline", String(target.value));
+          if (target?.value !== null && target?.value !== undefined) {
+            fd.set("baseline", String(target.value));
+            fd.set("baseline_from", period.from);
+            fd.set("baseline_to", period.to);
+          }
           start(async () => {
             const r = await addActionItem(fd);
             if (r.ok) {

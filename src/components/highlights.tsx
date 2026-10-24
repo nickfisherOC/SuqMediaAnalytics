@@ -6,7 +6,7 @@ const TONE = {
 } as const;
 
 /** Bold-headline bullets, in the style of the hand-made reports. */
-export function HighlightList({ items, tone }: { items: Highlight[]; tone: "good" | "bad" }) {
+export function HighlightList({ items, tone }: { items: Pick<Highlight, "title" | "detail">[]; tone: "good" | "bad" }) {
   const t = TONE[tone];
   return (
     <div className="rounded-2xl border border-line bg-surface p-5">
@@ -32,11 +32,11 @@ export function HighlightList({ items, tone }: { items: Highlight[]; tone: "good
   );
 }
 
-export function Headline({ text, auto = true }: { text: string; auto?: boolean }) {
+export function Headline({ text, children }: { text: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-line bg-surface-2/60 p-6">
       <p className="text-2xl leading-snug font-semibold text-balance sm:text-3xl">{text}</p>
-      {auto && <p className="mt-2 text-xs text-muted">Summary picked from the biggest changes. A written version comes with the AI layer.</p>}
+      {children}
     </div>
   );
 }

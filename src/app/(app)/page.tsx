@@ -10,10 +10,12 @@ import { loadReviewPage } from "@/lib/data/review-page";
 import { formatRange } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Weekly Review" };
+// Writing an AI summary (the "Rewrite" button) takes about a minute.
+export const maxDuration = 180;
 
 async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   const params = await searchParams;
-  const { ctx, controls, reviews, actionItems, notes, targets } = await loadReviewPage(params);
+  const { ctx, controls, reviews, actionItems, notes, targets, ai } = await loadReviewPage(params);
   const query = new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString();
 
   return (
@@ -31,7 +33,7 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
 
       {reviews.map((r) => (
         <BrandSection key={r.brand.slug} brand={r.brand}>
-          {brandSections(r).map((s) => (
+          {brandSections(r, { ai: ai[r.brand.slug] }).map((s) => (
             <div key={s.key} className="print-avoid-break">
               {s.node}
             </div>
@@ -41,7 +43,7 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
 
       <section className="flex flex-col gap-4" aria-label="Meeting">
         <h2 className="font-display text-3xl font-extrabold tracking-tight">Actions and notes</h2>
-        <ActionItems items={actionItems} targets={targets} />
+        <ActionItems items={actionItems} targets={targets} period={controls.period} />
         <NotesLog notes={notes} today={ctx.today} brands={ctx.brands.map((b) => ({ slug: b.slug, name: b.name }))} isAdmin={ctx.viewer.role === "admin"} />
       </section>
     </div>

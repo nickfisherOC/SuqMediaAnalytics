@@ -1,5 +1,6 @@
 import "server-only";
 import { addDays, type ISODate } from "@/lib/dates";
+import type { Outcome } from "@/lib/outcomes";
 import { createUserClient } from "@/lib/supabase/server";
 import { getAppContext } from "./source";
 
@@ -19,6 +20,9 @@ export interface ActionItem {
   /** Figure id the item hopes to move, e.g. "peoplesuq.comments.instagram". */
   targetFigure: string | null;
   baselineValue: number | null;
+  /** Set two weeks after adding, by the nightly outcome check. */
+  outcome: Outcome | null;
+  fromAi: boolean;
   createdOn: ISODate;
   updatedOn: ISODate;
 }
@@ -42,7 +46,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
   const since = addDays(ctx.today, -DONE_VISIBLE_DAYS);
   const { data, error } = await db
     .from("action_items")
-    .select("id, title, owner_name, due_date, status, brand_id, target_metric, target_platform, baseline_value, created_at, updated_at")
+    .select("id, title, owner_name, due_date, status, brand_id, target_metric, target_platform, baseline_value, outcome, recommendation_id, created_at, updated_at")
     .or(`status.eq.open,updated_at.gte.${since}`)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -59,6 +63,8 @@ export async function getActionItems(): Promise<ActionItem[]> {
       brand,
       targetFigure: brand && r.target_metric ? `${brand}.${r.target_metric}.${r.target_platform ?? "all"}` : null,
       baselineValue: r.baseline_value === null ? null : Number(r.baseline_value),
+      outcome: r.outcome,
+      fromAi: !!r.recommendation_id,
       createdOn: r.created_at.slice(0, 10),
       updatedOn: r.updated_at.slice(0, 10),
     };
