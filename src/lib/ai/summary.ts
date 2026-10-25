@@ -88,7 +88,7 @@ function schemaFor(figureIds: [string, ...string[]]) {
         expected_direction: z.enum(["up", "down"]),
         effort: z.enum(["S", "M", "L"]),
         confidence: z.enum(["low", "medium", "high"]),
-        category: z.enum(["content", "schedule", "platform_mix", "ads", "store", "community", "pipeline", "other"]),
+        category: z.enum(["content", "schedule", "platform_mix", "store", "community", "pipeline", "other"]),
       }),
     ),
   });

@@ -5,10 +5,11 @@ import { formatExact } from "@/lib/format";
 import { buildReview, type BrandReview } from "@/lib/review";
 import { searchLine, type SearchLine } from "@/lib/search";
 import { createUserClient } from "@/lib/supabase/server";
+import { aggregate, MetricStore } from "@/lib/metrics/engine";
 import { getAiViews, type AiView } from "./ai-summary";
 import { loadSearch } from "./search-site";
 import { getActionItems, getNotes, type ActionItem, type Note } from "./meeting";
-import { getAppContext, userWeekReader, type AppContext } from "./source";
+import { getAppContext, getMetricRows, userWeekReader, type AppContext } from "./source";
 import { loadWeek } from "./week";
 
 export interface ReviewPage {
@@ -23,6 +24,16 @@ export interface ReviewPage {
   ai: Record<string, AiView>;
   /** One-line Google search summary per brand slug (brands with Search Console). */
   search: Record<string, SearchLine | null>;
+  /** One-line ad summary per brand slug (brands running Meta ads). */
+  ads: Record<string, AdsLine>;
+}
+
+export interface AdsLine {
+  spend: number;
+  results: number;
+  /** "leads" for brands with a CRM, otherwise "link clicks". */
+  resultLabel: string;
+  costPerResult: number | null;
 }
 
 export async function loadReviewPage(params: Record<string, string | string[] | undefined>): Promise<ReviewPage> {
@@ -30,7 +41,7 @@ export async function loadReviewPage(params: Record<string, string | string[] | 
   const controls = parseControls(params, ctx.brands, ctx.today);
   const [weeks, actionItems, notes] = await Promise.all([loadWeek(controls, userWeekReader), getActionItems(), getNotes()]);
   const reviews = weeks.map((w) => buildReview(w, controls));
-  const [ai, search] = await Promise.all([getAiViews(reviews, controls), searchLines(reviews, controls, ctx)]);
+  const [ai, search, ads] = await Promise.all([getAiViews(reviews, controls), searchLines(reviews, controls, ctx), adsLines(reviews, controls)]);
 
   const targets: TargetOption[] = [];
   for (const r of reviews) {
@@ -42,7 +53,28 @@ export async function loadReviewPage(params: Record<string, string | string[] | 
       targets.push({ id, label: `${r.brand.shortName}: ${f.label}`, value: f.value, display: formatExact(f.value, f.unit), higherIsBetter: f.higherIsBetter });
     }
   }
-  return { ctx, controls, reviews, actionItems, notes, targets, ai, search };
+  return { ctx, controls, reviews, actionItems, notes, targets, ai, search, ads };
+}
+
+async function adsLines(reviews: BrandReview[], controls: Controls): Promise<Record<string, AdsLine>> {
+  const withAds = reviews.filter((r) => r.brand.platforms.includes("meta_ads"));
+  if (!withAds.length) return {};
+  const rows = await getMetricRows(
+    withAds.map((r) => r.brand.slug),
+    controls.period.from,
+    controls.period.to,
+  );
+  const out: Record<string, AdsLine> = {};
+  for (const r of withAds) {
+    const store = new MetricStore(rows.filter((x) => x.brand === r.brand.slug));
+    const value = (metric: string, platform: "meta_ads" | "lead_rescue") => aggregate(store, r.brand.slug, metric, platform, r.brand.platforms, [controls.period]).value ?? 0;
+    const spend = value("ad_spend", "meta_ads");
+    if (!spend) continue;
+    const leadBrand = r.brand.platforms.includes("lead_rescue");
+    const results = leadBrand ? value("leads_from_ads", "lead_rescue") : value("ad_clicks", "meta_ads");
+    out[r.brand.slug] = { spend, results, resultLabel: leadBrand ? "leads" : "link clicks", costPerResult: results ? spend / results : null };
+  }
+  return out;
 }
 
 async function searchLines(reviews: BrandReview[], controls: Controls, ctx: AppContext): Promise<Record<string, SearchLine | null>> {

@@ -40,8 +40,6 @@ export interface PipelinePage {
 
 const TILE_METRICS = [
   ["leads", "lead_rescue"],
-  ["leads_from_ads", "lead_rescue"],
-  ["cost_per_lead", "all"],
   ["quotes_sent", "lead_rescue"],
   ["deals_won", "lead_rescue"],
   ["revenue_won", "lead_rescue"],

@@ -277,6 +277,7 @@ interface InsightRow {
   inline_link_clicks?: string;
   frequency?: string;
   actions?: { action_type: string; value: string }[];
+  action_values?: { action_type: string; value: string }[];
   ad_id?: string;
   ad_name?: string;
   adset_id?: string;
@@ -286,13 +287,24 @@ interface InsightRow {
 }
 
 const leadsOf = (r: InsightRow) => Number(r.actions?.find((a) => a.action_type === "lead")?.value ?? 0);
+
+/** Meta's own count of an action, trying its names in order (pixel events have several). Exported for tests. */
+export function actionCount(actions: { action_type: string; value: string }[] | undefined, types: string[]): number {
+  for (const t of types) {
+    const a = actions?.find((x) => x.action_type === t);
+    if (a) return Number(a.value);
+  }
+  return 0;
+}
+const PURCHASE = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"];
+const ADD_TO_CART = ["add_to_cart", "omni_add_to_cart", "offsite_conversion.fb_pixel_add_to_cart"];
 const num = (v?: string) => (v ? Number(v) : 0);
 
 export const metaAds: Connector = async (ctx) => {
   const token = await ctx.secret("access");
   const act = ctx.account.externalId;
   const timeRange = JSON.stringify({ since: ctx.from, until: ctx.to });
-  const fields = "date_start,spend,impressions,reach,clicks,inline_link_clicks,frequency,actions";
+  const fields = "date_start,spend,impressions,reach,clicks,inline_link_clicks,frequency,actions,action_values";
 
   const daily = await graphAll<InsightRow>(ctx, `/${act}/insights`, { level: "account", time_increment: "1", time_range: timeRange, fields, limit: "100" }, token);
   const points: MetricPoint[] = [];
@@ -303,6 +315,20 @@ export const metaAds: Connector = async (ctx) => {
       { date: r.date_start, metric: "ad_clicks", value: num(r.inline_link_clicks) },
       { date: r.date_start, metric: "meta_leads", value: leadsOf(r) },
     );
+  }
+
+  // Each ad's picture and whether it's running, for the Ads page.
+  const adInfo = new Map<string, { status: string | null; thumbnail: string | null }>();
+  try {
+    const ads = await graphAll<{ id: string; effective_status?: string; creative?: { thumbnail_url?: string } }>(
+      ctx,
+      `/${act}/ads`,
+      { fields: "id,effective_status,creative{thumbnail_url}", limit: "200" },
+      token,
+    );
+    for (const a of ads) adInfo.set(a.id, { status: a.effective_status ?? null, thumbnail: a.creative?.thumbnail_url ?? null });
+  } catch {
+    // Pictures are a nice-to-have; the numbers still sync without them.
   }
 
   // Campaign → ad set → ad detail, names kept exactly as in Meta.
@@ -335,6 +361,13 @@ export const metaAds: Connector = async (ctx) => {
       link_clicks: num(r.inline_link_clicks),
       leads: leadsOf(r),
       frequency: r.frequency ? num(r.frequency) : null,
+      ...(level === "ad" && r.ad_id && adInfo.has(r.ad_id) ? { status: adInfo.get(r.ad_id)!.status, thumbnail_url: adInfo.get(r.ad_id)!.thumbnail } : {}),
+      // Meta's pixel counts for sales campaigns (zero when the site has no pixel events).
+      extra: {
+        purchases: actionCount(r.actions, PURCHASE),
+        add_to_cart: actionCount(r.actions, ADD_TO_CART),
+        purchase_value: actionCount(r.action_values, PURCHASE),
+      },
       is_sample: false,
     }));
     if (upserts.length) {

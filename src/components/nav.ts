@@ -12,6 +12,7 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Weekly Review" },
   { href: "/platforms", label: "Platforms" },
   { href: "/content", label: "Content Lab" },
+  { href: "/ads", label: "Ads", needs: "meta_ads" },
   { href: "/search", label: "Search & Site" },
   { href: "/pipeline", label: "Sales Pipeline", needs: "lead_rescue" },
   { href: "/goals", label: "Goals" },

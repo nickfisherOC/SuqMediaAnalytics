@@ -77,9 +77,7 @@ export const DEFAULT_BRANDS: BrandSettings[] = [
     platforms: ["facebook", "instagram", "meta_ads", "ga4", "search_console", "lead_rescue"],
     cadence: { postsPerWeek: 3 },
     scoreboard: [
-      { metric: "ad_spend", platform: "meta_ads" },
       { metric: "leads", platform: "lead_rescue" },
-      { metric: "cost_per_lead", platform: "all" },
       { metric: "quotes_sent", platform: "lead_rescue" },
       { metric: "deals_won", platform: "lead_rescue" },
       { metric: "revenue_won", platform: "lead_rescue" },
@@ -87,8 +85,6 @@ export const DEFAULT_BRANDS: BrandSettings[] = [
       { metric: "followers", platform: "all" },
     ],
     funnel: [
-      { metric: "ad_impressions", platform: "meta_ads", label: "Ad impressions" },
-      { metric: "ad_clicks", platform: "meta_ads", label: "Ad clicks" },
       { metric: "site_sessions", platform: "ga4", label: "Landing page visits" },
       { metric: "leads", platform: "lead_rescue", label: "Leads" },
       { metric: "quotes_sent", platform: "lead_rescue", label: "Quote sent" },

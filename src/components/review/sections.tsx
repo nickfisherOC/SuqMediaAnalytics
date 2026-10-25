@@ -8,6 +8,8 @@ import { Headline, HighlightList } from "@/components/highlights";
 import { StatTile } from "@/components/stat-tile";
 import { WhatsWinning } from "@/components/whats-winning";
 import type { AiView } from "@/lib/data/ai-summary";
+import type { AdsLine } from "@/lib/data/review-page";
+import { formatExact } from "@/lib/format";
 import type { SearchLine } from "@/lib/search";
 import type { BrandReview } from "@/lib/review";
 
@@ -27,7 +29,7 @@ const H3 = ({ children }: { children: React.ReactNode }) => (
  * Pulse AI has written this period, its headline, highlights, patterns and
  * ideas replace the rule-based ones.
  */
-export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean; search?: SearchLine | null; searchHref?: string } = {}): ReviewSection[] {
+export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean; search?: SearchLine | null; searchHref?: string; ads?: AdsLine; adsHref?: string } = {}): ReviewSection[] {
   const { pack, highlights: h } = r;
   const n = opts.ai?.narrative ?? null;
   const improved = n ? n.improved : h.improved;
@@ -107,6 +109,32 @@ export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: 
       ),
     },
   ];
+
+  if (opts.ads) {
+    const a = opts.ads;
+    const money = (v: number) => formatExact(v, "currency");
+    sections.push({
+      key: "ads",
+      title: "Ads",
+      node: (
+        <div>
+          <H3>Ads</H3>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface p-5 text-lg">
+            <span>
+              {[`${money(a.spend)} spent`, `${formatExact(a.results, "count")} ${a.resultLabel}`, a.costPerResult !== null ? `${money(a.costPerResult)} per ${a.resultLabel === "leads" ? "lead" : "click"}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            {!opts.presenting && (
+              <Link href={opts.adsHref ?? "/ads"} className="no-print text-base font-semibold text-accent hover:underline">
+                See Ads →
+              </Link>
+            )}
+          </p>
+        </div>
+      ),
+    });
+  }
 
   if (opts.search) {
     const s = opts.search;
