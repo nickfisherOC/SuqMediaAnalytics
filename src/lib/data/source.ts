@@ -10,7 +10,8 @@ import type { ContentCard } from "@/lib/content";
 import type { MetricRow } from "@/lib/metrics/engine";
 import { generateSampleData } from "@/lib/sample/generate";
 import { createUserClient } from "@/lib/supabase/server";
-import { queryBrands, queryContent, queryFlags, queryMetricRows, type Flag } from "./queries";
+import { SERIES, type Series } from "@/config/series";
+import { queryBrands, queryContent, queryFlags, queryMetricRows, querySeries, type Flag } from "./queries";
 
 export type { Flag };
 
@@ -151,5 +152,12 @@ export async function getContent(brandSlugs: string[], from: ISODate, to: ISODat
   return queryContent(await createUserClient(), ctx.brands, brandSlugs, from, to);
 }
 
+/** Content series (Settings). Preview mode uses the built-in list. */
+export const getSeries = cache(async (): Promise<Series[]> => {
+  const ctx = await getAppContext();
+  if (ctx.mode === "preview") return SERIES;
+  return querySeries(await createUserClient(), ctx.brands);
+});
+
 /** loadWeek's reader for pages: the signed-in user's view, or sample data in preview mode. */
-export const userWeekReader = { metricRows: getMetricRows, flags: getFlags, content: getContent };
+export const userWeekReader = { metricRows: getMetricRows, flags: getFlags, content: getContent, series: getSeries };

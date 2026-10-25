@@ -1,4 +1,4 @@
-import { seriesDay } from "@/config/series";
+import { SERIES, seriesDay, type Series } from "@/config/series";
 import type { Platform } from "@/config/platforms";
 import { addDays, type ISODate } from "@/lib/dates";
 
@@ -63,9 +63,9 @@ export function taggedDay(caption: string | null): number | null {
  * untagged post on a series day joins the day only when its platform has no
  * tagged post for it (a series video someone forgot to tag).
  */
-export function groupContent(brand: string, items: ContentCard[]): ContentGroup[] {
+export function groupContent(brand: string, items: ContentCard[], series: Series[] = SERIES): ContentGroup[] {
   const dayOf = (it: ContentCard) => {
-    const sd = seriesDay(brand, it.publishedDate) ?? seriesDay(brand, addDays(it.publishedDate, -1));
+    const sd = seriesDay(brand, it.publishedDate, series) ?? seriesDay(brand, addDays(it.publishedDate, -1), series);
     const tag = taggedDay(it.caption);
     return sd && tag !== null && tag >= 1 && tag <= sd.series.days ? tag : null;
   };
@@ -76,7 +76,7 @@ export function groupContent(brand: string, items: ContentCard[]): ContentGroup[
   for (const it of items) {
     let day = dayOf(it);
     if (day === null) {
-      const sd = seriesDay(brand, it.publishedDate);
+      const sd = seriesDay(brand, it.publishedDate, series);
       if (sd && taggedDay(it.caption) === null && !taggedFor.has(`${it.platform}:${sd.day}`)) day = sd.day;
     }
     const key = day !== null ? `${brand}-day-${day}` : `${brand}-${it.publishedDate}`;

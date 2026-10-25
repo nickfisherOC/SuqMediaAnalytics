@@ -1,12 +1,11 @@
 import "server-only";
 import type { BrandSettings } from "@/config/brands";
 import { SOCIAL_PLATFORMS, type SocialPlatform } from "@/config/platforms";
-import { SERIES } from "@/config/series";
 import { groupContent, type ContentGroup } from "@/lib/content";
 import { parseControls, type Controls } from "@/lib/controls";
 import { addDays } from "@/lib/dates";
 import { buildSeriesGrid, type SeriesGrid } from "@/lib/series-grid";
-import { getAppContext, getContent, type AppContext } from "./source";
+import { getAppContext, getContent, getSeries, type AppContext } from "./source";
 
 export interface BrandPosts {
   brand: BrandSettings;
@@ -30,6 +29,7 @@ export async function loadContentLab(params: Record<string, string | string[] | 
   const { period } = controls;
   const social = controls.brands.filter((b) => b.platforms.some((p) => (SOCIAL_PLATFORMS as readonly string[]).includes(p)));
 
+  const allSeries = await getSeries();
   const [content, series] = await Promise.all([
     getContent(
       social.map((b) => b.slug),
@@ -37,7 +37,7 @@ export async function loadContentLab(params: Record<string, string | string[] | 
       period.to,
     ),
     Promise.all(
-      SERIES.flatMap((s) => {
+      allSeries.flatMap((s) => {
         const brand = controls.brands.find((b) => b.slug === s.brand);
         if (!brand) return [];
         return [getContent([brand.slug], s.start, addDays(s.start, s.days - 1)).then((cards) => ({ brand, grid: buildSeriesGrid(s, brand.platforms, cards, ctx.today) }))];
@@ -49,6 +49,7 @@ export async function loadContentLab(params: Record<string, string | string[] | 
     const pieces = groupContent(
       brand.slug,
       content.filter((c) => c.brand === brand.slug),
+      allSeries,
     );
     if (sort === "newest") pieces.sort((a, b) => b.date.localeCompare(a.date) || b.totalViews - a.totalViews);
     return { brand, platforms: SOCIAL_PLATFORMS.filter((p) => brand.platforms.includes(p)), pieces };

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BrandSettings } from "@/config/brands";
 import { isPlatform, type Platform } from "@/config/platforms";
+import type { Series } from "@/config/series";
 import type { ContentCard } from "@/lib/content";
 import type { ISODate } from "@/lib/dates";
 import type { MetricRow } from "@/lib/metrics/engine";
@@ -59,6 +60,16 @@ export async function queryBrands(db: SupabaseClient): Promise<BrandSettings[]> 
   const { data, error } = await db.from("brands").select("*").eq("active", true).order("sort_order");
   if (error) throw error;
   return (data as BrandRow[]).map(toBrand);
+}
+
+/** Content series for the given brands (Settings), oldest first. */
+export async function querySeries(db: SupabaseClient, brands: BrandSettings[]): Promise<Series[]> {
+  const slugById = new Map(brands.map((b) => [b.id, b.slug]));
+  const { data, error } = await db.from("content_series").select("id, brand_id, name, start_date, days").order("start_date");
+  if (error) throw error;
+  return data
+    .filter((s) => slugById.has(s.brand_id))
+    .map((s) => ({ id: s.id, brand: slugById.get(s.brand_id)!, name: s.name, start: s.start_date, days: s.days }));
 }
 
 const PAGE = 1000;

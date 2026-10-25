@@ -8,7 +8,8 @@ import { rangeLength } from "@/lib/periods";
 import { bestPerPlatform, groupContent, type ContentCard, type ContentGroup } from "@/lib/content";
 import type { ISODate } from "@/lib/dates";
 import type { MetricRow } from "@/lib/metrics/engine";
-import { queryContent, queryFlags, queryMetricRows, type Flag } from "./queries";
+import type { Series } from "@/config/series";
+import { queryContent, queryFlags, queryMetricRows, querySeries, type Flag } from "./queries";
 
 export interface BrandWeek {
   brand: BrandSettings;
@@ -26,6 +27,7 @@ export interface WeekReader {
   metricRows: Read<MetricRow>;
   flags: Read<Flag>;
   content: Read<ContentCard & { brand: string }>;
+  series: () => Promise<Series[]>;
 }
 
 export function serviceReader(db: SupabaseClient, brands: BrandSettings[]): WeekReader {
@@ -33,6 +35,7 @@ export function serviceReader(db: SupabaseClient, brands: BrandSettings[]): Week
     metricRows: (slugs, from, to) => queryMetricRows(db, brands, slugs, from, to),
     flags: (slugs, from, to) => queryFlags(db, brands, slugs, from, to),
     content: (slugs, from, to) => queryContent(db, brands, slugs, from, to),
+    series: () => querySeries(db, brands),
   };
 }
 
@@ -43,10 +46,11 @@ export async function loadWeek(controls: Controls, reader: WeekReader): Promise<
   const from = [trendStart, ...compare.windows.map((w) => w.from)].reduce(minDate);
   const slugs = brands.map((b) => b.slug);
 
-  const [rows, flags, content] = await Promise.all([
+  const [rows, flags, content, series] = await Promise.all([
     reader.metricRows(slugs, from, period.to),
     reader.flags(slugs, period.from, period.to),
     reader.content(slugs, period.from, period.to),
+    reader.series(),
   ]);
 
   return brands.map((brand) => {
@@ -55,7 +59,7 @@ export async function loadWeek(controls: Controls, reader: WeekReader): Promise<
       brand,
       pack: buildWeekPack(store, brand, period, compare),
       flags: flags.filter((f) => f.brand === brand.slug),
-      groups: groupContent(brand.slug, content.filter((c) => c.brand === brand.slug)),
+      groups: groupContent(brand.slug, content.filter((c) => c.brand === brand.slug), series),
       best: bestPerPlatform(content.filter((c) => c.brand === brand.slug)),
     };
   });
