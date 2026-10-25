@@ -4,6 +4,7 @@ import { BrandSection } from "@/components/brand-section";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { BreakdownList, CrossoverNote, KeywordBoard, QueryList } from "@/components/search/search-views";
 import { StatTile } from "@/components/stat-tile";
+import { getGoalProgress } from "@/lib/data/goals";
 import { loadSearchSite } from "@/lib/data/search-site";
 import { formatRange, formatShort } from "@/lib/dates";
 
@@ -23,7 +24,7 @@ const H3 = ({ children, note }: { children: React.ReactNode; note?: string }) =>
 );
 
 async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">["searchParams"] }) {
-  const { ctx, controls, compareLabel, brands } = await loadSearchSite(await searchParams);
+  const [{ ctx, controls, compareLabel, brands }, { byFigure: goals }] = await Promise.all([loadSearchSite(await searchParams), getGoalProgress()]);
   const isAdmin = ctx.mode === "live" && ctx.viewer.role === "admin";
   return (
     <div className="flex flex-col gap-14">
@@ -41,7 +42,7 @@ async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">
               <H2 note={`From Google Search Console${b.searchDataTo ? `, up to ${formatShort(b.searchDataTo)} (Google's numbers arrive 2–3 days late)` : ""}.`}>Search: finding you on Google</H2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {b.searchTiles.map((f) => (
-                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} />
+                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} goal={goals[f.id]} />
                 ))}
               </div>
               {ctx.mode === "live" && (
@@ -71,7 +72,7 @@ async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">
               <H2 note="From Google Analytics: what happens once people arrive.">Site: visits to the website</H2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {b.siteTiles.map((f) => (
-                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} />
+                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} goal={goals[f.id]} />
                 ))}
               </div>
               {ctx.mode === "live" && (

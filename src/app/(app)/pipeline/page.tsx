@@ -4,6 +4,7 @@ import { BrandSection } from "@/components/brand-section";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { NudgeList, SourceTable, StageBars, WeeklyChart } from "@/components/pipeline/pipeline-views";
 import { StatTile } from "@/components/stat-tile";
+import { getGoalProgress } from "@/lib/data/goals";
 import { loadPipelinePage } from "@/lib/data/pipeline";
 import { formatRange } from "@/lib/dates";
 
@@ -17,7 +18,7 @@ const H3 = ({ children, note }: { children: React.ReactNode; note?: string }) =>
 );
 
 async function Pipeline({ searchParams }: { searchParams: PageProps<"/pipeline">["searchParams"] }) {
-  const { ctx, controls, compareLabel, pipelines } = await loadPipelinePage(await searchParams);
+  const [{ ctx, controls, compareLabel, pipelines }, { byFigure: goals }] = await Promise.all([loadPipelinePage(await searchParams), getGoalProgress()]);
   const range = formatRange(controls.period.from, controls.period.to);
 
   return (
@@ -37,7 +38,7 @@ async function Pipeline({ searchParams }: { searchParams: PageProps<"/pipeline">
             <H3>This period</H3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {p.tiles.map((f) => (
-                <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} />
+                <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} goal={goals[f.id]} />
               ))}
             </div>
           </div>

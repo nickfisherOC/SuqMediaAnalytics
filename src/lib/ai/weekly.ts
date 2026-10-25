@@ -4,8 +4,9 @@ import type { BrandSettings } from "@/config/brands";
 import { getMetric } from "@/config/metrics";
 import type { Controls } from "@/lib/controls";
 import { loadWeek, serviceReader } from "@/lib/data/week";
-import { addDays, type ISODate } from "@/lib/dates";
+import { addDays, minDate, type ISODate } from "@/lib/dates";
 import { aggregate, MetricStore } from "@/lib/metrics/engine";
+import { GOAL_STATE_LABEL, goalProgress, goalText, goalWindow, type Goal } from "@/lib/goals";
 import { judgeOutcome, OUTCOME_AFTER_DAYS, outcomeWindow } from "@/lib/outcomes";
 import type { WeekPack } from "@/lib/pack";
 import { queryMetricRows } from "@/lib/data/queries";
@@ -60,6 +61,30 @@ export async function extrasFor(db: SupabaseClient, brands: BrandSettings[], bra
     : { data: [] as { recommendation_id: string; outcome: PastRecommendation["outcome"] }[] };
   const outcomeOf = new Map((items ?? []).map((i) => [i.recommendation_id, i.outcome]));
 
+  // Goals, judged the same way as the Goals page.
+  const { data: goalRows } = await db.from("goals").select("id, metric_key, platform, label, target, cadence, direction, start_date, deadline").eq("brand_id", brand.id);
+  let goals: SummaryExtras["goals"] = [];
+  if (goalRows?.length) {
+    const list: Goal[] = goalRows.map((g) => ({
+      id: g.id,
+      brand: brand.slug,
+      metric: g.metric_key,
+      platform: g.platform,
+      label: g.label,
+      target: Number(g.target),
+      cadence: g.cadence,
+      direction: g.direction,
+      startDate: g.start_date,
+      deadline: g.deadline,
+    }));
+    const from = list.map((g) => addDays(goalWindow(g, today).previous?.from ?? goalWindow(g, today).from, -31)).reduce(minDate);
+    const store = new MetricStore(await queryMetricRows(db, brands, [brand.slug], from, today));
+    goals = list.map((g) => {
+      const p = goalProgress(g, store, brand.platforms, today);
+      return { goal: goalText(p), window: `${p.from} to ${p.through} (window ends ${p.to})`, value: p.value, target: g.target, status: GOAL_STATE_LABEL[p.state] };
+    });
+  }
+
   let pipeline: unknown;
   if (brand.platforms.includes("lead_rescue")) {
     const r = await runTool({ db, brands, today }, "get_pipeline", {});
@@ -76,6 +101,7 @@ export async function extrasFor(db: SupabaseClient, brands: BrandSettings[], bra
       outcome: outcomeOf.get(r.id) ?? null,
     })),
     pipeline,
+    goals,
   };
 }
 

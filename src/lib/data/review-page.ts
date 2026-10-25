@@ -7,6 +7,7 @@ import { searchLine, type SearchLine } from "@/lib/search";
 import { createUserClient } from "@/lib/supabase/server";
 import { aggregate, MetricStore } from "@/lib/metrics/engine";
 import { getAiViews, type AiView } from "./ai-summary";
+import { getGoalProgress } from "./goals";
 import { loadSearch } from "./search-site";
 import { getActionItems, getNotes, type ActionItem, type Note } from "./meeting";
 import { getAppContext, getMetricRows, userWeekReader, type AppContext } from "./source";
@@ -26,6 +27,8 @@ export interface ReviewPage {
   search: Record<string, SearchLine | null>;
   /** One-line ad summary per brand slug (brands running Meta ads). */
   ads: Record<string, AdsLine>;
+  /** Goal progress by figure id, and every goal (for the presentation's Goals slide). */
+  goals: Awaited<ReturnType<typeof getGoalProgress>>;
 }
 
 export interface AdsLine {
@@ -41,7 +44,7 @@ export async function loadReviewPage(params: Record<string, string | string[] | 
   const controls = parseControls(params, ctx.brands, ctx.today);
   const [weeks, actionItems, notes] = await Promise.all([loadWeek(controls, userWeekReader), getActionItems(), getNotes()]);
   const reviews = weeks.map((w) => buildReview(w, controls));
-  const [ai, search, ads] = await Promise.all([getAiViews(reviews, controls), searchLines(reviews, controls, ctx), adsLines(reviews, controls)]);
+  const [ai, search, ads, goals] = await Promise.all([getAiViews(reviews, controls), searchLines(reviews, controls, ctx), adsLines(reviews, controls), getGoalProgress()]);
 
   const targets: TargetOption[] = [];
   for (const r of reviews) {
@@ -53,7 +56,7 @@ export async function loadReviewPage(params: Record<string, string | string[] | 
       targets.push({ id, label: `${r.brand.shortName}: ${f.label}`, value: f.value, display: formatExact(f.value, f.unit), higherIsBetter: f.higherIsBetter });
     }
   }
-  return { ctx, controls, reviews, actionItems, notes, targets, ai, search, ads };
+  return { ctx, controls, reviews, actionItems, notes, targets, ai, search, ads, goals };
 }
 
 async function adsLines(reviews: BrandReview[], controls: Controls): Promise<Record<string, AdsLine>> {

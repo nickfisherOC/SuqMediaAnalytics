@@ -1,5 +1,7 @@
 import { Sparkline } from "@/components/charts/sparkline";
+import { GoalLine } from "@/components/goals/goal-views";
 import { InfoTip } from "@/components/info-tip";
+import type { GoalProgress } from "@/lib/goals";
 import { PLATFORM_INFO } from "@/config/platforms";
 import { formatDelta, formatPct, formatValue } from "@/lib/format";
 import type { Figure } from "@/lib/pack";
@@ -9,7 +11,7 @@ function list(names: string[]) {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-export function StatTile({ figure, compareLabel, sample }: { figure: Figure; compareLabel: string; sample: boolean }) {
+export function StatTile({ figure, compareLabel, sample, goal }: { figure: Figure; compareLabel: string; sample: boolean; goal?: GoalProgress }) {
   const { change } = figure;
   const used = figure.platformsUsed.map((p) => PLATFORM_INFO[p].label);
   const missing = figure.platformsMissing.map((p) => PLATFORM_INFO[p].label);
@@ -45,6 +47,7 @@ export function StatTile({ figure, compareLabel, sample }: { figure: Figure; com
           )}
         </>
       )}
+      {goal && <GoalLine p={goal} />}
     </article>
   );
 }

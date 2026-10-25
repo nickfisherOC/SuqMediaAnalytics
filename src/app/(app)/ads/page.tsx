@@ -6,6 +6,7 @@ import { Funnel } from "@/components/charts/funnel";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { StatTile } from "@/components/stat-tile";
 import { loadAdsPage } from "@/lib/data/ads";
+import { getGoalProgress } from "@/lib/data/goals";
 import { formatRange } from "@/lib/dates";
 import { formatExact } from "@/lib/format";
 
@@ -19,7 +20,7 @@ const H3 = ({ children, note }: { children: React.ReactNode; note?: string }) =>
 );
 
 async function Ads({ searchParams }: { searchParams: PageProps<"/ads">["searchParams"] }) {
-  const { ctx, controls, compareLabel, brands } = await loadAdsPage(await searchParams);
+  const [{ ctx, controls, compareLabel, brands }, { byFigure: goals }] = await Promise.all([loadAdsPage(await searchParams), getGoalProgress()]);
   return (
     <div className="flex flex-col gap-14">
       <header className="flex flex-col gap-1">
@@ -39,7 +40,7 @@ async function Ads({ searchParams }: { searchParams: PageProps<"/ads">["searchPa
               <H3>Spend and reach</H3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {b.spendTiles.map((f) => (
-                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} />
+                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} goal={goals[f.id]} />
                 ))}
               </div>
             </div>
@@ -50,7 +51,7 @@ async function Ads({ searchParams }: { searchParams: PageProps<"/ads">["searchPa
               </H3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {b.resultTiles.map((f) => (
-                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} />
+                  <StatTile key={f.id} figure={f} compareLabel={compareLabel} sample={false} goal={goals[f.id]} />
                 ))}
               </div>
               {b.noPixelSales && (

@@ -10,6 +10,7 @@ import { WhatsWinning } from "@/components/whats-winning";
 import type { AiView } from "@/lib/data/ai-summary";
 import type { AdsLine } from "@/lib/data/review-page";
 import { formatExact } from "@/lib/format";
+import type { GoalProgress } from "@/lib/goals";
 import type { SearchLine } from "@/lib/search";
 import type { BrandReview } from "@/lib/review";
 
@@ -29,7 +30,7 @@ const H3 = ({ children }: { children: React.ReactNode }) => (
  * Pulse AI has written this period, its headline, highlights, patterns and
  * ideas replace the rule-based ones.
  */
-export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean; search?: SearchLine | null; searchHref?: string; ads?: AdsLine; adsHref?: string } = {}): ReviewSection[] {
+export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean; search?: SearchLine | null; searchHref?: string; ads?: AdsLine; adsHref?: string; goals?: Record<string, GoalProgress> } = {}): ReviewSection[] {
   const { pack, highlights: h } = r;
   const n = opts.ai?.narrative ?? null;
   const improved = n ? n.improved : h.improved;
@@ -57,7 +58,7 @@ export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: 
           <H3>Scoreboard</H3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {pack.scoreboard.map((id) => (
-              <StatTile key={id} figure={pack.figures[id]} compareLabel={r.compareLabel} sample={pack.isSample} />
+              <StatTile key={id} figure={pack.figures[id]} compareLabel={r.compareLabel} sample={pack.isSample} goal={opts.goals?.[id]} />
             ))}
           </div>
         </div>

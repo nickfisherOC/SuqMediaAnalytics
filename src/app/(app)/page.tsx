@@ -15,7 +15,7 @@ export const maxDuration = 180;
 
 async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   const params = await searchParams;
-  const { ctx, controls, reviews, actionItems, notes, targets, ai, search, ads } = await loadReviewPage(params);
+  const { ctx, controls, reviews, actionItems, notes, targets, ai, search, ads, goals } = await loadReviewPage(params);
   const query = new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString();
 
   return (
@@ -33,7 +33,7 @@ async function WeeklyReview({ searchParams }: { searchParams: PageProps<"/">["se
 
       {reviews.map((r) => (
         <BrandSection key={r.brand.slug} brand={r.brand}>
-          {brandSections(r, { ai: ai[r.brand.slug], search: search[r.brand.slug], searchHref: `/search${query ? `?${query}` : ""}`, ads: ads[r.brand.slug], adsHref: `/ads${query ? `?${query}` : ""}` }).map((s) => (
+          {brandSections(r, { ai: ai[r.brand.slug], search: search[r.brand.slug], searchHref: `/search${query ? `?${query}` : ""}`, ads: ads[r.brand.slug], adsHref: `/ads${query ? `?${query}` : ""}`, goals: goals.byFigure }).map((s) => (
             <div key={s.key} className="print-avoid-break">
               {s.node}
             </div>

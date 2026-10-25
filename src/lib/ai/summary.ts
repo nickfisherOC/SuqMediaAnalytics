@@ -27,6 +27,7 @@ export interface SummaryExtras {
   openActions: string[];
   pastRecommendations: PastRecommendation[];
   pipeline?: unknown;
+  goals?: { goal: string; window: string; value: number | null; target: number; status: string }[];
 }
 
 const round = (v: number | null) => (v === null ? null : Math.round(v * 100) / 100);
@@ -70,6 +71,7 @@ export function buildAiPack(r: BrandReview, extras: SummaryExtras) {
     open_action_items: extras.openActions,
     past_recommendations_and_outcomes: extras.pastRecommendations,
     ...(extras.pipeline ? { sales_pipeline: extras.pipeline } : {}),
+    ...(extras.goals?.length ? { goals: extras.goals.map((g) => ({ ...g, value: round(g.value) })) } : {}),
   };
 }
 

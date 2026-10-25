@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { GoalState, goalText } from "@/components/goals/goal-views";
 import { brandSections } from "@/components/review/sections";
+import { getMetric } from "@/config/metrics";
+import { formatExact } from "@/lib/format";
 import type { ActionItem } from "@/lib/data/meeting";
 import { loadReviewPage } from "@/lib/data/review-page";
 import { formatRange } from "@/lib/dates";
@@ -10,7 +13,7 @@ export const metadata: Metadata = { title: "Presentation" };
 
 async function Presentation({ searchParams }: { searchParams: PageProps<"/present">["searchParams"] }) {
   const params = await searchParams;
-  const { controls, reviews, actionItems, notes, ai, search, ads } = await loadReviewPage(params);
+  const { controls, reviews, actionItems, notes, ai, search, ads, goals } = await loadReviewPage(params);
   const range = formatRange(controls.period.from, controls.period.to);
   const query = new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString();
 
@@ -34,7 +37,7 @@ async function Presentation({ searchParams }: { searchParams: PageProps<"/presen
   ];
 
   for (const r of reviews) {
-    for (const s of brandSections(r, { ai: ai[r.brand.slug], search: search[r.brand.slug], ads: ads[r.brand.slug], presenting: true })) {
+    for (const s of brandSections(r, { ai: ai[r.brand.slug], search: search[r.brand.slug], ads: ads[r.brand.slug], goals: goals.byFigure, presenting: true })) {
       slides.push({ key: `${r.brand.slug}-${s.key}`, kicker: `${r.brand.name} · ${s.title}`, accent: r.brand.accent, node: s.node });
     }
   }
@@ -56,6 +59,24 @@ async function Presentation({ searchParams }: { searchParams: PageProps<"/presen
         </ul>
       </div>
     ) : null;
+  const shownGoals = goals.all.filter((p) => reviews.some((r) => r.brand.slug === p.goal.brand));
+  if (shownGoals.length) {
+    slides.push({
+      key: "goals",
+      kicker: "Goals",
+      node: (
+        <ul className="flex flex-col gap-4 text-2xl">
+          {shownGoals.map((p) => (
+            <li key={p.goal.id} className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="font-semibold">{goalText(p)}</span>
+              <span className="text-ink-2">{p.value === null ? "no data yet" : `now ${formatExact(p.value, getMetric(p.goal.metric).unit)}`}</span>
+              <GoalState state={p.state} />
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
   slides.push({
     key: "actions",
     kicker: "Action items",
