@@ -48,7 +48,7 @@ async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">
                 <>
                   <div>
                     <H3 note="The searches you want to show up for.">Keywords you track</H3>
-                    <KeywordBoard brand={b.brand.slug} keywords={b.keywords} compareLabel={compareLabel} isAdmin={isAdmin} />
+                    <KeywordBoard brand={b.brand.slug} keywords={b.keywords} compareLabel={compareLabel} isAdmin={isAdmin} ranks={b.ranks} rankInfo={b.rankInfo} />
                   </div>
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                     <div>

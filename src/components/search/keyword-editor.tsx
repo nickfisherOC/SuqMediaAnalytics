@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { addKeyword, removeKeyword } from "@/app/(app)/search/actions";
+import { addKeyword, checkRanksNow, removeKeyword } from "@/app/(app)/search/actions";
 
 /** Admins: remove one keyword (the × on its row). */
 export function RemoveKeyword({ id, keyword }: { id: string; keyword: string }) {
@@ -63,5 +63,29 @@ export function AddKeyword({ brand, groups }: { brand: string; groups: string[] 
       </button>
       {error && <p className="w-full text-sm text-bad">{error}</p>}
     </form>
+  );
+}
+
+/** Admins: queue an exact-position check now instead of waiting for Saturday. */
+export function CheckRanksNow({ brand }: { brand: string }) {
+  const [pending, start] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+  return (
+    <span className="no-print inline-flex items-center gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await checkRanksNow(brand);
+            setMessage(r.message ?? null);
+          })
+        }
+        className="rounded-md border border-line px-2 py-0.5 text-xs font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
+      >
+        {pending ? "Queuing…" : "Check now"}
+      </button>
+      {message && <span className="text-xs text-ink-2">{message}</span>}
+    </span>
   );
 }

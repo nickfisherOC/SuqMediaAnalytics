@@ -7,7 +7,10 @@ import { buildFigure, type Figure } from "@/lib/pack";
 import { rangeLength, type DateRange } from "@/lib/periods";
 import { compareLabel } from "@/lib/review";
 import { byQuery, crossoverQueries, crossovers, discovered, keywordResults, nameTerms, quickWins, type Crossovers, type Keyword, type KeywordResult, type QueryStats, type SearchRow } from "@/lib/search";
+import { latestRanks, type CityRank, type RankCheckRow } from "@/lib/rank";
 import { cityBreakdown } from "@/lib/site";
+import { createServiceClient } from "@/lib/supabase/service";
+import { collectRankChecks, rankCheckerConfigured } from "@/lib/sync/rank-checks";
 import { createUserClient } from "@/lib/supabase/server";
 import { getAppContext, getMetricRows, type AppContext } from "./source";
 
@@ -27,6 +30,9 @@ export interface BrandSearchSite {
   discovered: QueryStats[];
   /** Searches for the other brand's name, or a name both share. */
   crossovers: Crossovers;
+  /** Exact positions from Edmonton and Calgary, by keyword (lower case). */
+  ranks: Record<string, CityRank[]>;
+  rankInfo: { configured: boolean; checkedOn: string | null; pending: number };
   /** Latest day Search Console has data for (it runs 2-3 days behind). */
   searchDataTo: ISODate | null;
   site: { channels: Breakdown[]; pages: Breakdown[]; devices: Breakdown[]; cities: Breakdown[]; botVisits: number; botCities: string[] };
@@ -116,6 +122,11 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
     period.to,
   );
   const db = ctx.mode === "live" ? await createUserClient() : null;
+  // Pick up any rank checks Google has finished since the last nightly run.
+  if (db && rankCheckerConfigured()) {
+    const { count } = await db.from("rank_checks").select("*", { count: "exact", head: true }).eq("status", "pending");
+    if (count) await collectRankChecks(createServiceClient(), ctx.brands, ctx.today).catch(() => 0);
+  }
 
   page.brands = await Promise.all(
     brands.map(async (brand) => {
@@ -133,6 +144,8 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
         quickWins: [],
         discovered: [],
         crossovers: { otherBrand: [], shared: [] },
+        ranks: {},
+        rankInfo: { configured: rankCheckerConfigured(), checkedOn: null, pending: 0 },
         searchDataTo: null,
         site: { channels: [], pages: [], devices: [], cities: [], botVisits: 0, botCities: [] },
       };
@@ -143,6 +156,15 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
 
       const search = await loadSearch(db, brand, ctx.brands, period, compare.windows, ids("search_console"));
       if (search) Object.assign(result, search);
+      if (hasSearch) {
+        const [{ data: checks }, { count: pending }] = await Promise.all([
+          db.from("rank_checks").select("keyword, city, checked_on, position, url, above, map_pack, map_rank").eq("brand_id", brand.id).eq("status", "done").order("checked_on", { ascending: false }).limit(1000),
+          db.from("rank_checks").select("*", { count: "exact", head: true }).eq("brand_id", brand.id).eq("status", "pending"),
+        ]);
+        const latest = latestRanks((checks ?? []) as RankCheckRow[]);
+        result.ranks = Object.fromEntries(latest.byKeyword);
+        result.rankInfo = { ...result.rankInfo, checkedOn: latest.checkedOn, pending: pending ?? 0 };
+      }
 
       const siteIds = ids("ga4");
       if (siteIds.length) {

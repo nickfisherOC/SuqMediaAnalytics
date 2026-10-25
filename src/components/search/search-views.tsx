@@ -1,7 +1,9 @@
+import { formatShort } from "@/lib/dates";
 import { formatExact } from "@/lib/format";
+import type { CityRank } from "@/lib/rank";
 import { shortPage, type Badge, type Crossovers, type KeywordResult, type QueryStats } from "@/lib/search";
 import type { Breakdown } from "@/lib/data/search-site";
-import { AddKeyword, RemoveKeyword } from "./keyword-editor";
+import { AddKeyword, CheckRanksNow, RemoveKeyword } from "./keyword-editor";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
 const pos = (p: number) => (p < 10 ? p.toFixed(1) : Math.round(p).toString());
@@ -28,23 +30,98 @@ function Movement({ k }: { k: KeywordResult }) {
   return d > 0 ? <span className="text-xs font-semibold text-good">▲ up {pos(d)}</span> : <span className="text-xs font-semibold text-bad">▼ down {pos(-d)}</span>;
 }
 
-/** The keywords a brand tracks, by group: Google position, movement, badge, and the page that shows up. */
-export function KeywordBoard({ brand, keywords, compareLabel, isAdmin }: { brand: string; keywords: KeywordResult[]; compareLabel: string; isAdmin: boolean }) {
+/** One city's exact position for a keyword: "#12", "100+", movement since the last check, and its Google Maps spot. */
+function CityCell({ r }: { r: CityRank | undefined }) {
+  if (!r) return <span className="text-muted">—</span>;
+  const moved = r.previous === undefined ? null : (r.previous ?? 101) - (r.position ?? 101);
+  return (
+    <span className="flex flex-col items-end leading-tight">
+      <span className="tabular font-semibold">{r.position === null ? <span className="text-muted">100+</span> : `#${r.position}`}</span>
+      {moved !== null && moved !== 0 && (
+        <span className={`text-xs font-semibold ${moved > 0 ? "text-good" : "text-bad"}`}>
+          {moved > 0 ? "▲" : "▼"} {Math.abs(moved) > 100 ? "" : Math.abs(moved)}
+        </span>
+      )}
+      {r.mapPack && <span className={`text-xs ${r.mapRank ? "font-semibold text-good" : "text-muted"}`}>{r.mapRank ? `Maps #${r.mapRank}` : "not in Maps"}</span>}
+    </span>
+  );
+}
+
+/** Who ranks above you, per city, behind a small toggle under the keyword. */
+function AboveYou({ ranks }: { ranks: CityRank[] }) {
+  if (!ranks.some((r) => r.above.length)) return null;
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-xs font-medium text-ink-2 hover:text-ink">Who&apos;s above you</summary>
+      <div className="mt-1 grid gap-2 sm:grid-cols-2">
+        {ranks.map((r) => (
+          <div key={r.city}>
+            <p className="text-xs font-semibold text-muted">{r.city}</p>
+            <ol className="text-xs text-ink-2">
+              {r.above.slice(0, 3).map((a) => (
+                <li key={a.url} className="truncate" title={a.title}>
+                  #{a.rank}{" "}
+                  <a href={a.url} target="_blank" rel="noreferrer" className="hover:underline">
+                    {a.domain.replace(/^www\./, "")}
+                  </a>
+                </li>
+              ))}
+              {!r.above.length && <li>Nobody: you&apos;re on top.</li>}
+            </ol>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/** The keywords a brand tracks, by group: Google position, movement, badge, exact city positions, and the page that shows up. */
+export function KeywordBoard({
+  brand,
+  keywords,
+  compareLabel,
+  isAdmin,
+  ranks,
+  rankInfo,
+}: {
+  brand: string;
+  keywords: KeywordResult[];
+  compareLabel: string;
+  isAdmin: boolean;
+  ranks: Record<string, CityRank[]>;
+  rankInfo: { configured: boolean; checkedOn: string | null; pending: number };
+}) {
   const groups = [...new Set(keywords.map((k) => k.group))];
+  const cities = rankInfo.configured ? ["Edmonton", "Calgary"] : [];
   return (
     <div className={card}>
+      {rankInfo.configured && (
+        <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span>
+            {rankInfo.checkedOn ? `Edmonton and Calgary positions checked ${formatShort(rankInfo.checkedOn)}. ` : "Edmonton and Calgary positions haven't been checked yet. "}
+            {rankInfo.pending ? `${rankInfo.pending} checks in progress, back in a few minutes. ` : ""}
+            Checked every Saturday.
+          </span>
+          {isAdmin && !rankInfo.pending && <CheckRanksNow brand={brand} />}
+        </p>
+      )}
       {!keywords.length && <p className="text-ink-2">No keywords tracked yet.{isAdmin ? " Add one below." : ""}</p>}
       {groups.map((g) => (
         <div key={g} className="mb-5 last:mb-0">
           <p className="mb-1 text-sm font-semibold text-ink-2">{g}</p>
           <div className="overflow-x-auto">
             {/* Fixed column widths so every group's columns line up. */}
-            <table className="w-full min-w-[46rem] table-fixed text-left">
+            <table className="w-full min-w-[54rem] table-fixed text-left">
               <thead className="text-xs tracking-wide text-muted uppercase">
                 <tr>
-                  <th className="w-[30%] py-2 pr-3 font-semibold">Search</th>
-                  <th className="w-[17%] py-2 pr-3 text-right font-semibold">Position</th>
-                  <th className="w-[13%] py-2 pr-3 font-semibold">vs {compareLabel}</th>
+                  <th className="w-[26%] py-2 pr-3 font-semibold">Search</th>
+                  <th className="w-[15%] py-2 pr-3 text-right font-semibold">Avg position</th>
+                  <th className="w-[11%] py-2 pr-3 font-semibold">vs {compareLabel}</th>
+                  {cities.map((c) => (
+                    <th key={c} className="w-[9%] py-2 pr-3 text-right font-semibold">
+                      {c}
+                    </th>
+                  ))}
                   <th className="w-[8%] py-2 pr-3 text-right font-semibold">Shown</th>
                   <th className="w-[8%] py-2 pr-3 text-right font-semibold">Clicks</th>
                   <th className="py-2 pr-3 font-semibold">Page that shows up</th>
@@ -60,6 +137,7 @@ export function KeywordBoard({ brand, keywords, compareLabel, isAdmin }: { brand
                       <td className="py-2.5 pr-3">
                         <p className="font-medium">{k.keyword}</p>
                         {k.variants.length > 0 && <p className="text-xs text-muted">also counts: {k.variants.slice(0, 3).join(", ")}</p>}
+                        <AboveYou ranks={ranks[k.keyword.toLowerCase()] ?? []} />
                       </td>
                       <td className="py-2.5 pr-3 text-right whitespace-nowrap">
                         <span className="flex items-center justify-end gap-2">
@@ -70,6 +148,11 @@ export function KeywordBoard({ brand, keywords, compareLabel, isAdmin }: { brand
                       <td className="py-2.5 pr-3 whitespace-nowrap">
                         <Movement k={k} />
                       </td>
+                      {cities.map((c) => (
+                        <td key={c} className="py-2.5 pr-3 text-right align-top">
+                          <CityCell r={ranks[k.keyword.toLowerCase()]?.find((r) => r.city === c)} />
+                        </td>
+                      ))}
                       <td className="tabular py-2.5 pr-3 text-right">{k.impressions ? count(k.impressions) : "—"}</td>
                       <td className="tabular py-2.5 pr-3 text-right">{k.impressions ? count(k.clicks) : "—"}</td>
                       <td className="max-w-56 truncate py-2.5 pr-3 text-sm text-ink-2" title={k.topPage ?? undefined}>
@@ -89,8 +172,10 @@ export function KeywordBoard({ brand, keywords, compareLabel, isAdmin }: { brand
       ))}
       {isAdmin && <AddKeyword brand={brand} groups={groups} />}
       <p className="mt-3 text-xs text-muted">
-        Position is Google&apos;s average spot when your site was shown: 1 is the top, 11+ is page 2. &quot;Not showing up yet&quot; means Google didn&apos;t show the
-        site for that search in this period. Positions are averaged across everywhere people searched; exact positions by city come with the rank checker.
+        Avg position is Google&apos;s average spot when your site was shown, everywhere people searched: 1 is the top, 11+ is page 2. &quot;Not showing up yet&quot;
+        means Google didn&apos;t show the site for that search in this period.
+        {cities.length > 0 &&
+          " Edmonton and Calgary are exact positions from a Google search made in that city; 100+ means not in the top 100. “Maps” is your spot in the Google Maps box when Google shows one."}
       </p>
     </div>
   );
