@@ -6,10 +6,11 @@ import { ConnectorConfigError, type Connector, type MetricPoint, type SyncContex
  * Lead Rescue (Growtheon) workspace API: https://api.workspaceconnector.com/v1,
  * authenticated with an `x-api-key` header.
  *
- * Pulse stores deals (no names, emails or phone numbers) and their stage
- * changes. The API only exposes each deal's current stage, so stage history
- * starts the day Pulse first synced; dates before that are estimated from
- * each deal's last update.
+ * Pulse stores deals and their stage changes. Each deal's contact name,
+ * company and Lead Rescue link go in lead_contacts, which only admins can
+ * read; emails and phone numbers are never stored. The API only exposes
+ * each deal's current stage, so stage history starts the day Pulse first
+ * synced; dates before that are estimated from each deal's last update.
  */
 
 const BASE = "https://api.workspaceconnector.com/v1";
@@ -43,8 +44,17 @@ interface Deal {
 }
 interface Contact {
   id: string;
+  business_id?: string;
+  full_name?: string | null;
+  name?: string | null;
+  company?: string | null;
   lead_source: string | null;
   status?: string;
+}
+
+/** The contact's page in the Lead Rescue app. */
+export function contactUrl(c: Pick<Contact, "id" | "business_id">): string | null {
+  return c.business_id ? `https://app.leadrescue.pro/workspace/${c.business_id}/contacts/${c.id}` : null;
 }
 
 async function api<T>(ctx: SyncContext, key: string, path: string): Promise<T> {
@@ -174,6 +184,17 @@ export const leadRescue: Connector = async (ctx) => {
     .upsert(leadRows, { onConflict: "account_id,external_id" })
     .select("id, external_id, stage_id");
   if (lErr) throw lErr;
+
+  // Who each deal is (admin-only table), so admins can follow up from Pulse.
+  const contactRows = saved.flatMap((l) => {
+    const d = live.find((x) => x.id === l.external_id);
+    const c = d?.contact_id ? contactById.get(d.contact_id) : undefined;
+    return c ? [{ lead_id: l.id, name: (c.full_name || c.name || "").trim() || null, company: c.company?.trim() || null, url: contactUrl(c) }] : [];
+  });
+  if (contactRows.length) {
+    const { error } = await ctx.db.from("lead_contacts").upsert(contactRows, { onConflict: "lead_id" });
+    if (error) throw error;
+  }
 
   // Stage history: one event whenever the stage differs from what we last saw.
   const events = saved

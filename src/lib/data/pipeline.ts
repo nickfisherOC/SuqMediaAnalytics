@@ -113,11 +113,22 @@ export async function loadPipelinePage(params: Record<string, string | string[] 
         }
       }
 
+      const waiting = waitingDeals(stages, leads, enteredAt, firstSyncDate ?? ctx.today, ctx.today);
+      // Names and links: admins only (the table's RLS enforces this too).
+      if (ctx.viewer.role === "admin" && waiting.length) {
+        const { data: contacts } = await db.from("lead_contacts").select("lead_id, name, company, url").in("lead_id", waiting.map((d) => d.id));
+        const byLead = new Map((contacts ?? []).map((c) => [c.lead_id, c]));
+        for (const d of waiting) {
+          const c = byLead.get(d.id);
+          if (c) d.contact = { name: c.name, company: c.company, url: c.url };
+        }
+      }
+
       return {
         brand,
         tiles: tilesOf(brand, w.pack.figures),
         stages: byStage(stages, leads),
-        waiting: waitingDeals(stages, leads, enteredAt, firstSyncDate ?? ctx.today, ctx.today),
+        waiting,
         sources: bySource(leads, controls.period),
         weeks: weekly(leads, DATA_START, ctx.today),
         firstSyncDate,

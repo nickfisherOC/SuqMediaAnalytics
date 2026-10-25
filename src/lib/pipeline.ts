@@ -44,6 +44,8 @@ export interface WaitingDeal {
   value: number;
   source: string;
   createdDate: ISODate;
+  /** Admins only: who it is, and their page in Lead Rescue. */
+  contact?: { name: string | null; company: string | null; url: string | null };
 }
 
 export interface SourceSummary {
@@ -112,6 +114,12 @@ export function waitingDeals(
       };
     })
     .sort((a, b) => b.daysInStage - a.daysInStage || b.value - a.value);
+}
+
+/** The follow-up list: deals that haven't moved in a week, most valuable first. */
+export function needsNudge(waiting: WaitingDeal[], top = 5) {
+  const all = waiting.filter((d) => d.daysInStage >= WAITING_DAYS).sort((a, b) => b.value - a.value || b.daysInStage - a.daysInStage);
+  return { top: all.slice(0, top), count: all.length, value: all.reduce((t, d) => t + d.value, 0) };
 }
 
 /** Leads created in the period, by where they came from, with how far they got. */

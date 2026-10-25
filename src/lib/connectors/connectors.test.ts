@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelOf, dailyMetrics } from "./lead-rescue";
+import { channelOf, contactUrl, dailyMetrics } from "./lead-rescue";
 import { excludeSpikes, type CitySessions } from "./shopify";
 import { dailyFromSnapshots } from "./tiktok";
 
@@ -106,5 +106,12 @@ describe("TikTok daily numbers from nightly snapshots", () => {
   it("never goes negative when TikTok trims a count", () => {
     const snaps = new Map([["v3", new Map([["2026-10-24", snap(100)], ["2026-10-25", snap(98)]])]]);
     expect(dailyFromSnapshots(snaps, new Map(), ["2026-10-25"]).find((p) => p.metric === "views")!.value).toBe(0);
+  });
+});
+
+describe("lead rescue contact links", () => {
+  it("builds the app link from the workspace and contact ids", () => {
+    expect(contactUrl({ id: "c1", business_id: "w1" })).toBe("https://app.leadrescue.pro/workspace/w1/contacts/c1");
+    expect(contactUrl({ id: "c1" })).toBeNull();
   });
 });

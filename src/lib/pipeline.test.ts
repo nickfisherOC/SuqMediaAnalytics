@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byStage, bySource, sourceLabel, waitingDeals, weekly, type LeadRow, type StageRow } from "./pipeline";
+import { byStage, bySource, needsNudge, sourceLabel, waitingDeals, weekly, type LeadRow, type StageRow } from "./pipeline";
 
 const stages: StageRow[] = [
   { id: "new", name: "New", position: 1, isWon: false, isLost: false },
@@ -78,5 +78,13 @@ describe("pipeline", () => {
       { weekStart: "2026-10-05", leads: 1, won: 0 },
       { weekStart: "2026-10-12", leads: 0, won: 1 },
     ]);
+  });
+
+  it("picks the most valuable deals that haven't moved in a week", () => {
+    const d = (id: string, days: number, value: number) => ({ id, stage: "New", daysInStage: days, estimated: false, value, source: "x", createdDate: "2026-10-01" });
+    const n = needsNudge([d("a", 20, 100), d("b", 3, 9999), d("c", 8, 500), d("d", 7, 500), d("e", 9, 50)], 2);
+    expect(n.top.map((x) => x.id)).toEqual(["c", "d"]);
+    expect(n.count).toBe(4);
+    expect(n.value).toBe(1150);
   });
 });

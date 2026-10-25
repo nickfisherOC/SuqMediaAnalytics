@@ -1,5 +1,5 @@
 import { formatShort } from "@/lib/dates";
-import { WAITING_DAYS, type SourceSummary, type StageSummary, type WaitingDeal, type WeekSummary } from "@/lib/pipeline";
+import { needsNudge, WAITING_DAYS, type SourceSummary, type StageSummary, type WaitingDeal, type WeekSummary } from "@/lib/pipeline";
 
 const dollars = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 });
 const money = (v: number) => dollars.format(v);
@@ -43,47 +43,80 @@ export function StageBars({ stages }: { stages: StageSummary[] }) {
   );
 }
 
-/** Open deals, longest in their stage first. No names: stage, days, value, form. */
-export function WaitingList({ deals, firstSyncDate }: { deals: WaitingDeal[]; firstSyncDate: string | null }) {
-  if (!deals.length) return <p className={`${card} text-ink-2`}>No open deals right now.</p>;
-  const anyEstimated = deals.some((d) => d.estimated);
+function DealRow({ d }: { d: WaitingDeal }) {
+  const stuck = d.daysInStage >= WAITING_DAYS * 2;
+  const who = d.contact?.name || d.contact?.company;
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+      <div className="min-w-0">
+        <p className="font-semibold">
+          {who ?? d.stage}
+          {who && d.contact?.company && d.contact.name && <span className="font-normal text-ink-2"> · {d.contact.company}</span>}
+          <span className="tabular ml-2 font-normal text-ink-2">{d.value ? money(d.value) : "no value set"}</span>
+        </p>
+        <p className="text-sm text-ink-2">
+          {who ? `${d.stage} · ` : ""}
+          <span className={stuck ? "font-semibold text-bad" : ""}>
+            {d.estimated ? "≈" : ""}
+            {d.daysInStage} days without moving{stuck ? " (stuck)" : ""}
+          </span>
+          {" · "}came in {formatShort(d.createdDate)} from {d.source}
+        </p>
+      </div>
+      {d.contact?.url && (
+        <a
+          href={d.contact.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="no-print shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:bg-surface-2"
+        >
+          Open in Lead Rescue ↗
+        </a>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The follow-up list: deals that haven't moved in a week, the most valuable
+ * first, capped at five. Everything else open sits behind "Show all".
+ */
+export function NudgeList({ waiting, firstSyncDate, isAdmin }: { waiting: WaitingDeal[]; firstSyncDate: string | null; isAdmin: boolean }) {
+  if (!waiting.length) return <p className={`${card} text-ink-2`}>No open deals right now.</p>;
+  const nudge = needsNudge(waiting);
+  const anyEstimated = waiting.some((d) => d.estimated);
   return (
     <div className={card}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="text-xs tracking-wide text-muted uppercase">
-            <tr>
-              <th className="py-2 pr-4 font-semibold">In stage</th>
-              <th className="py-2 pr-4 font-semibold">Stage</th>
-              <th className="py-2 pr-4 text-right font-semibold">Value</th>
-              <th className="py-2 pr-4 font-semibold">Came from</th>
-              <th className="py-2 font-semibold">Lead came in</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {deals.map((d) => {
-              const level = d.daysInStage >= WAITING_DAYS * 2 ? "stuck" : d.daysInStage >= WAITING_DAYS ? "waiting" : "fresh";
-              return (
-                <tr key={d.id}>
-                  <td className="py-2.5 pr-4 whitespace-nowrap">
-                    <span className={`tabular font-semibold ${level === "stuck" ? "text-bad" : level === "waiting" ? "text-ink" : "text-ink-2"}`}>
-                      {d.estimated ? "≈" : ""}
-                      {d.daysInStage} day{d.daysInStage === 1 ? "" : "s"}
-                    </span>
-                    {level === "stuck" && <span className="ml-2 text-xs font-semibold text-bad">stuck</span>}
-                  </td>
-                  <td className="py-2.5 pr-4">{d.stage}</td>
-                  <td className="tabular py-2.5 pr-4 text-right">{d.value ? money(d.value) : <span className="text-muted">no value</span>}</td>
-                  <td className="py-2.5 pr-4 text-ink-2">{d.source}</td>
-                  <td className="py-2.5 whitespace-nowrap text-ink-2">{formatShort(d.createdDate)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {nudge.count ? (
+        <>
+          <p className="text-lg">
+            <span className="font-semibold">
+              {nudge.count} deal{nudge.count === 1 ? " hasn't" : "s haven't"} moved in {WAITING_DAYS}+ days
+            </span>
+            <span className="text-ink-2">, worth {money(nudge.value)}.</span>
+            {nudge.count > nudge.top.length && <span className="text-ink-2"> The {nudge.top.length} most valuable:</span>}
+          </p>
+          <ul className="divide-y divide-line">
+            {nudge.top.map((d) => (
+              <DealRow key={d.id} d={d} />
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-lg font-semibold">Every open deal has moved in the last {WAITING_DAYS} days. Nice.</p>
+      )}
+
+      <details className="no-print mt-3 border-t border-line pt-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink-2 hover:text-ink">Show all {waiting.length} open deals, longest waiting first</summary>
+        <ul className="mt-2 divide-y divide-line">
+          {waiting.map((d) => (
+            <DealRow key={d.id} d={d} />
+          ))}
+        </ul>
+      </details>
+
       <p className="mt-3 text-xs text-muted">
-        {WAITING_DAYS}+ days is shown darker; {WAITING_DAYS * 2}+ days is marked stuck. To see who a deal is, open Lead Rescue.
+        {isAdmin ? "Names are only shown to admins." : "Names are only shown to admins; open Lead Rescue to see who a deal is."}
         {anyEstimated &&
           ` "≈" means Pulse started watching on ${firstSyncDate ? formatShort(firstSyncDate) : "connection"}, so the days count from the deal's last change in Lead Rescue.`}
       </p>

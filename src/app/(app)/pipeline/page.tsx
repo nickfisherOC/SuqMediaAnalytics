@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { BrandSection } from "@/components/brand-section";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { SourceTable, StageBars, WaitingList, WeeklyChart } from "@/components/pipeline/pipeline-views";
+import { NudgeList, SourceTable, StageBars, WeeklyChart } from "@/components/pipeline/pipeline-views";
 import { StatTile } from "@/components/stat-tile";
 import { loadPipelinePage } from "@/lib/data/pipeline";
 import { formatRange } from "@/lib/dates";
@@ -51,8 +51,8 @@ async function Pipeline({ searchParams }: { searchParams: PageProps<"/pipeline">
                 <StageBars stages={p.stages} />
               </div>
               <div>
-                <H3 note="Open deals, the longest-waiting first. These are the ones to follow up.">Waiting the longest</H3>
-                <WaitingList deals={p.waiting} firstSyncDate={p.firstSyncDate} />
+                <H3 note="Deals that haven't moved in a week, the most valuable first.">Needs a nudge</H3>
+                <NudgeList waiting={p.waiting} firstSyncDate={p.firstSyncDate} isAdmin={ctx.viewer.role === "admin"} />
               </div>
               <div>
                 <H3>Where leads come from</H3>
