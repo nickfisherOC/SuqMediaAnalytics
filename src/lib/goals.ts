@@ -147,9 +147,11 @@ export function goalText(p: GoalProgress): string {
   const unit = getMetric(p.goal.metric).unit;
   const target = formatExact(p.goal.target, unit);
   const when = p.goal.cadence === "week" ? "a week" : p.goal.cadence === "month" ? "a month" : `by ${formatShort(p.goal.deadline ?? p.to)}`;
-  // Platform names keep their capital ("Facebook followers"); a bare metric name reads in lower case ("leads").
-  const label = p.goal.platform === "all" ? p.goal.label.toLowerCase() : p.goal.label;
-  if (p.direction === "at_most") return `${p.goal.label} under ${target} ${when}`;
+  // Platform names keep their capital ("Facebook followers"); a bare metric name reads in lower case
+  // ("leads"), including metrics with only one possible source ("Lead Rescue leads" → "leads").
+  const def = getMetric(p.goal.metric);
+  const label = p.goal.platform === "all" || def.platforms.length === 1 ? def.label.toLowerCase() : p.goal.label;
+  if (p.direction === "at_most") return `${p.goal.platform === "all" || def.platforms.length === 1 ? def.label : p.goal.label} under ${target} ${when}`;
   return `${target} ${isGrowthGoal(p.goal) ? "new " : ""}${label} ${when}`;
 }
 

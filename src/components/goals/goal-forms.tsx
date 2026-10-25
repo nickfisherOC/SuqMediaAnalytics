@@ -45,7 +45,9 @@ export function AddGoal({ brand, metrics }: { brand: string; metrics: MetricOpti
         start(async () => {
           const r = await addGoal(fd);
           if (r.ok) {
+            // Reset the form and the choices that drive it, so the description and "From" match what's shown.
             form.current?.reset();
+            setMetric(metrics[0]?.key ?? "");
             setCadence("week");
             setError(null);
           } else setError(r.message ?? "Couldn't add it.");

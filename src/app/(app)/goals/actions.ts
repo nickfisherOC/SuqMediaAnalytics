@@ -41,7 +41,7 @@ export async function addGoal(formData: FormData): Promise<ActionResult> {
     if (!["week", "month", "deadline"].includes(cadence)) return { ok: false, message: "Pick how often." };
     const deadline = String(formData.get("deadline") ?? "");
     if (cadence === "deadline" && (!isISODate(deadline) || deadline <= ctx.today)) return { ok: false, message: "Pick a deadline in the future." };
-    const label = platform === "all" ? def.label : `${PLATFORM_INFO[platform as keyof typeof PLATFORM_INFO].label} ${def.label.toLowerCase()}`;
+    const label = platform === "all" || def.platforms.length === 1 ? def.label : `${PLATFORM_INFO[platform as keyof typeof PLATFORM_INFO].label} ${def.label.toLowerCase()}`;
 
     const db = await createUserClient();
     const { error } = await db.from("goals").insert({
