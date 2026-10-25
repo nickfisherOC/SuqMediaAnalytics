@@ -17,7 +17,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="lg:grid lg:min-h-dvh lg:grid-cols-[15rem_1fr]">
-      <aside className="no-print hidden border-r border-line bg-surface lg:flex lg:flex-col lg:gap-6 lg:p-4">
+      <aside className="no-print hidden border-r border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:gap-6 lg:self-start lg:overflow-y-auto lg:p-4">
         <Link href="/" className="px-3 pt-2 font-display text-2xl font-extrabold tracking-tight">
           Pulse
         </Link>
@@ -39,19 +39,26 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0">
-        <header className="no-print z-20 border-b border-line bg-page/95 backdrop-blur lg:sticky lg:top-0">
-          <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
+        <div className="no-print lg:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 pt-3">
             <Link href="/" className="font-display text-xl font-extrabold">
               Pulse
             </Link>
             <ThemeToggle />
           </div>
-          <nav aria-label="Main" className="pt-2 lg:hidden">
+          <nav aria-label="Main" className="pt-2 pb-1">
             <NavLinks items={items} orientation="horizontal" />
           </nav>
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-8">
+        </div>
+        {/* Brand · Period · Compare stays pinned to the top while the page scrolls, on every screen size. */}
+        <header className="no-print sticky top-0 z-30 border-b border-line bg-page/95 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:py-3 lg:px-8">
             <ControlBar brands={ctx.brands} today={ctx.today} />
-            {(usesSample || ctx.mode === "preview") && <SampleBadge preview={ctx.mode === "preview"} />}
+            {(usesSample || ctx.mode === "preview") && (
+              <div className="hidden sm:block">
+                <SampleBadge preview={ctx.mode === "preview"} />
+              </div>
+            )}
           </div>
         </header>
         <main className="px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-24">{children}</main>

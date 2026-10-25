@@ -92,6 +92,7 @@
   --color-grid: var(--grid);
   --color-line: var(--border);
   --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
   --color-good: var(--good-text);
   --color-bad: var(--bad-text);
   --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -121,14 +122,18 @@ body {
 /* Per-brand accent: a section sets --brand-light / --brand-dark inline. */
 .brand-scope {
   --accent: var(--brand-light);
+  /* Text on a filled accent: white on the deep light-mode colours, near-black on the bright dark-mode ones. */
+  --on-accent: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .brand-scope {
     --accent: var(--brand-dark);
+    --on-accent: #0a0a0f;
   }
 }
 :root[data-theme="dark"] .brand-scope {
   --accent: var(--brand-dark);
+  --on-accent: #0a0a0f;
 }
 
 /* Export PDF (print): light page, no app chrome, sections kept whole. */
