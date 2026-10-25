@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { Ideas } from "@/components/ai/ideas";
 import { SummaryBar } from "@/components/ai/summary-bar";
@@ -7,6 +8,7 @@ import { Headline, HighlightList } from "@/components/highlights";
 import { StatTile } from "@/components/stat-tile";
 import { WhatsWinning } from "@/components/whats-winning";
 import type { AiView } from "@/lib/data/ai-summary";
+import type { SearchLine } from "@/lib/search";
 import type { BrandReview } from "@/lib/review";
 
 export interface ReviewSection {
@@ -25,7 +27,7 @@ const H3 = ({ children }: { children: React.ReactNode }) => (
  * Pulse AI has written this period, its headline, highlights, patterns and
  * ideas replace the rule-based ones.
  */
-export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean } = {}): ReviewSection[] {
+export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: boolean; search?: SearchLine | null; searchHref?: string } = {}): ReviewSection[] {
   const { pack, highlights: h } = r;
   const n = opts.ai?.narrative ?? null;
   const improved = n ? n.improved : h.improved;
@@ -105,6 +107,34 @@ export function brandSections(r: BrandReview, opts: { ai?: AiView; presenting?: 
       ),
     },
   ];
+
+  if (opts.search) {
+    const s = opts.search;
+    const bits = [
+      `${s.clicks} click${s.clicks === 1 ? "" : "s"} from Google`,
+      s.tracked ? `${s.onPage1} of ${s.tracked} keywords on page 1` : null,
+      s.close ? `${s.close} close to page 1` : null,
+      s.movedUp ? `${s.movedUp} moved up` : null,
+      s.movedDown ? `${s.movedDown} moved down` : null,
+    ].filter(Boolean);
+    sections.push({
+      key: "search",
+      title: "Google search",
+      node: (
+        <div>
+          <H3>Google search</H3>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface p-5 text-lg">
+            <span>{bits.join(" · ")}</span>
+            {!opts.presenting && (
+              <Link href={opts.searchHref ?? "/search"} className="no-print text-base font-semibold text-accent hover:underline">
+                See Search &amp; Site →
+              </Link>
+            )}
+          </p>
+        </div>
+      ),
+    });
+  }
 
   if (n) {
     sections.push({

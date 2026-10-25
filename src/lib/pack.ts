@@ -63,8 +63,6 @@ const BRAND_DETAIL_METRICS: { metric: string; platform: Platform | "all" }[] = [
   { metric: "store_revenue", platform: "shopify" },
   { metric: "site_sessions", platform: "ga4" },
   { metric: "site_sessions_social", platform: "ga4" },
-  { metric: "search_clicks", platform: "search_console" },
-  { metric: "search_impressions", platform: "search_console" },
   { metric: "ad_clicks", platform: "meta_ads" },
   { metric: "meta_leads", platform: "meta_ads" },
   { metric: "cpm", platform: "meta_ads" },
@@ -91,7 +89,7 @@ function trailingWindows(period: DateRange, count: number): DateRange[] {
   });
 }
 
-function buildFigure(
+export function buildFigure(
   store: MetricStore,
   brand: BrandSettings,
   spec: TileSpec,

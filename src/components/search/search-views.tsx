@@ -1,0 +1,159 @@
+import { formatExact } from "@/lib/format";
+import { shortPage, type Badge, type KeywordResult, type QueryStats } from "@/lib/search";
+import type { Breakdown } from "@/lib/data/search-site";
+import { AddKeyword, RemoveKeyword } from "./keyword-editor";
+
+const card = "rounded-2xl border border-line bg-surface p-5";
+const pos = (p: number) => (p < 10 ? p.toFixed(1) : Math.round(p).toString());
+const count = (n: number) => formatExact(n, "count");
+
+const BADGE: Record<Badge, { label: string; className: string }> = {
+  top3: { label: "Top 3", className: "bg-[color-mix(in_oklab,var(--status-good)_18%,transparent)] text-ink" },
+  page1: { label: "Page 1", className: "bg-[color-mix(in_oklab,var(--status-good)_10%,transparent)] text-ink" },
+  page2: { label: "Page 2 · close!", className: "bg-[color-mix(in_oklab,var(--status-warning)_18%,transparent)] text-ink" },
+  deeper: { label: "", className: "bg-surface-2 text-ink-2" },
+  none: { label: "Not showing up yet", className: "bg-surface-2 text-muted" },
+};
+
+function BadgeChip({ k }: { k: KeywordResult }) {
+  const b = BADGE[k.badge];
+  const label = k.badge === "deeper" && k.position !== null ? `Page ${Math.ceil(k.position / 10)}` : b.label;
+  return <span className={`rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${b.className}`}>{label}</span>;
+}
+
+function Movement({ k }: { k: KeywordResult }) {
+  if (k.movedUp === null) return <span className="text-xs text-muted">{k.position === null ? "" : "new"}</span>;
+  const d = Math.round(k.movedUp * 10) / 10;
+  if (Math.abs(d) < 0.5) return <span className="text-xs text-muted">no change</span>;
+  return d > 0 ? <span className="text-xs font-semibold text-good">▲ up {pos(d)}</span> : <span className="text-xs font-semibold text-bad">▼ down {pos(-d)}</span>;
+}
+
+/** The keywords a brand tracks, by group: Google position, movement, badge, and the page that shows up. */
+export function KeywordBoard({ brand, keywords, compareLabel, isAdmin }: { brand: string; keywords: KeywordResult[]; compareLabel: string; isAdmin: boolean }) {
+  const groups = [...new Set(keywords.map((k) => k.group))];
+  return (
+    <div className={card}>
+      {!keywords.length && <p className="text-ink-2">No keywords tracked yet.{isAdmin ? " Add one below." : ""}</p>}
+      {groups.map((g) => (
+        <div key={g} className="mb-5 last:mb-0">
+          <p className="mb-1 text-sm font-semibold text-ink-2">{g}</p>
+          <div className="overflow-x-auto">
+            {/* Fixed column widths so every group's columns line up. */}
+            <table className="w-full min-w-[46rem] table-fixed text-left">
+              <thead className="text-xs tracking-wide text-muted uppercase">
+                <tr>
+                  <th className="w-[30%] py-2 pr-3 font-semibold">Search</th>
+                  <th className="w-[17%] py-2 pr-3 text-right font-semibold">Position</th>
+                  <th className="w-[13%] py-2 pr-3 font-semibold">vs {compareLabel}</th>
+                  <th className="w-[8%] py-2 pr-3 text-right font-semibold">Shown</th>
+                  <th className="w-[8%] py-2 pr-3 text-right font-semibold">Clicks</th>
+                  <th className="py-2 pr-3 font-semibold">Page that shows up</th>
+                  {isAdmin && <th className="w-8 py-2" aria-label="Remove" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {keywords
+                  .filter((k) => k.group === g)
+                  .sort((a, b) => (a.position ?? 999) - (b.position ?? 999))
+                  .map((k) => (
+                    <tr key={k.id}>
+                      <td className="py-2.5 pr-3">
+                        <p className="font-medium">{k.keyword}</p>
+                        {k.variants.length > 0 && <p className="text-xs text-muted">also counts: {k.variants.slice(0, 3).join(", ")}</p>}
+                      </td>
+                      <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                        <span className="flex items-center justify-end gap-2">
+                          {k.position !== null && <span className="tabular text-lg font-semibold">{pos(k.position)}</span>}
+                          <BadgeChip k={k} />
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3 whitespace-nowrap">
+                        <Movement k={k} />
+                      </td>
+                      <td className="tabular py-2.5 pr-3 text-right">{k.impressions ? count(k.impressions) : "—"}</td>
+                      <td className="tabular py-2.5 pr-3 text-right">{k.impressions ? count(k.clicks) : "—"}</td>
+                      <td className="max-w-56 truncate py-2.5 pr-3 text-sm text-ink-2" title={k.topPage ?? undefined}>
+                        {k.topPage ? shortPage(k.topPage) : "—"}
+                      </td>
+                      {isAdmin && (
+                        <td className="py-2.5 text-right">
+                          <RemoveKeyword id={k.id} keyword={k.keyword} />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      {isAdmin && <AddKeyword brand={brand} groups={groups} />}
+      <p className="mt-3 text-xs text-muted">
+        Position is Google&apos;s average spot when your site was shown: 1 is the top, 11+ is page 2. &quot;Not showing up yet&quot; means Google didn&apos;t show the
+        site for that search in this period. Positions are averaged across everywhere people searched; exact positions by city come with the rank checker.
+      </p>
+    </div>
+  );
+}
+
+/** Searches as a simple list: search, position, times shown, clicks. */
+export function QueryList({ queries, empty, note }: { queries: QueryStats[]; empty: string; note?: string }) {
+  if (!queries.length) return <p className={`${card} text-ink-2`}>{empty}</p>;
+  return (
+    <div className={card}>
+      <table className="w-full text-left">
+        <thead className="text-xs tracking-wide text-muted uppercase">
+          <tr>
+            <th className="py-2 pr-3 font-semibold">Search</th>
+            <th className="py-2 pr-3 text-right font-semibold">Position</th>
+            <th className="py-2 pr-3 text-right font-semibold">Shown</th>
+            <th className="py-2 text-right font-semibold">Clicks</th>
+          </tr>
+        </thead>
+        <tbody className="tabular divide-y divide-line">
+          {queries.map((q) => (
+            <tr key={q.query}>
+              <td className="py-2 pr-3 font-sans">
+                {q.query}
+                <span className="block truncate text-xs text-muted">{shortPage(q.topPage)}</span>
+              </td>
+              <td className="py-2 pr-3 text-right font-semibold">{pos(q.position)}</td>
+              <td className="py-2 pr-3 text-right">{count(q.impressions)}</td>
+              <td className="py-2 text-right">{count(q.clicks)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {note && <p className="mt-3 text-xs text-muted">{note}</p>}
+    </div>
+  );
+}
+
+/** A ranked breakdown with thin bars (visits by channel, page, device or city). */
+export function BreakdownList({ title, items, format = (s) => s }: { title: string; items: Breakdown[]; format?: (label: string) => string }) {
+  const total = items.reduce((t, i) => t + i.sessions, 0);
+  const max = Math.max(1, ...items.map((i) => i.sessions));
+  return (
+    <div className={card}>
+      <p className="mb-3 text-sm font-semibold text-ink-2">{title}</p>
+      {!items.length ? (
+        <p className="text-sm text-muted">No visits recorded.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {items.map((i) => (
+            <li key={i.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1" title={`${format(i.label)}: ${count(i.sessions)} visits`}>
+              <span className="truncate text-sm">{format(i.label)}</span>
+              <span className="tabular text-sm font-semibold">
+                {count(i.sessions)}
+                <span className="font-normal text-muted"> · {Math.round((i.sessions / (total || 1)) * 100)}%</span>
+              </span>
+              <div className="col-span-2 h-1.5 rounded-full bg-surface-2" aria-hidden>
+                <div className="h-1.5 rounded-full bg-accent" style={{ width: `${Math.max(2, (i.sessions / max) * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
