@@ -119,18 +119,19 @@ export function keywordResults(keywords: Keyword[], current: QueryStats[], previ
 }
 
 /** Searches on page 2 (positions 11-20) that people actually saw: the easiest to push onto page 1. */
-export function quickWins(current: QueryStats[], minImpressions = 5, limit = 8): QueryStats[] {
+export function quickWins(current: QueryStats[], minImpressions = 5, limit = 8, exclude: Set<string> = new Set()): QueryStats[] {
   return current
+    .filter((q) => !exclude.has(q.query))
     .filter((q) => q.position > 10.5 && q.position <= 20.5 && q.impressions >= minImpressions)
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, limit);
 }
 
 /** The searches Google showed the site for most that aren't on the keyword list. */
-export function discovered(current: QueryStats[], keywords: Keyword[], limit = 12): QueryStats[] {
+export function discovered(current: QueryStats[], keywords: Keyword[], limit = 12, exclude: Set<string> = new Set()): QueryStats[] {
   const tracked = new Set(keywords.map((k) => queryKey(k.keyword)));
   return current
-    .filter((q) => !tracked.has(queryKey(q.query)))
+    .filter((q) => !tracked.has(queryKey(q.query)) && !exclude.has(q.query))
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, limit);
 }
@@ -164,4 +165,50 @@ export function searchLine(keywords: KeywordResult[], clicks: number): SearchLin
     movedUp: keywords.filter((k) => (k.movedUp ?? 0) >= 0.5).length,
     movedDown: keywords.filter((k) => (k.movedUp ?? 0) <= -0.5).length,
   };
+}
+
+/** Ways people type a brand name: "PeopleSuq" → "people suq", "peoplesuq"; "SUQ Media" → "suq media", "suqmedia". */
+export function nameTerms(name: string): string[] {
+  const spaced = name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().trim();
+  return [...new Set([queryKey(spaced), spaced.replace(/\s+/g, "")])].filter(Boolean);
+}
+
+function hasTerm(query: string, term: string) {
+  const words = new Set(queryKey(query).split(" "));
+  const termWords = term.split(" ");
+  return termWords.every((w) => words.has(w)) || query.toLowerCase().replace(/\s+/g, "").includes(term.replace(/\s+/g, ""));
+}
+
+export interface Crossovers {
+  /** Searches for another brand's name that showed this site. */
+  otherBrand: { brand: string; queries: QueryStats[] }[];
+  /** Searches only for a word both brand names share ("suq"): could be either. */
+  shared: QueryStats[];
+}
+
+/**
+ * Splits out searches meant for the other brand, so each brand's lists only
+ * show searches meant for it. `others` maps brand name → its name terms.
+ */
+export function crossovers(current: QueryStats[], own: string[], others: { brand: string; terms: string[] }[]): Crossovers {
+  const sharedWords = new Set(
+    own.flatMap((t) => t.split(" ")).filter((w) => others.some((o) => o.terms.some((t) => t.split(" ").includes(w)))),
+  );
+  const isShared = (q: QueryStats) => {
+    const words = queryKey(q.query).split(" ").filter(Boolean);
+    return words.length > 0 && words.every((w) => sharedWords.has(w));
+  };
+  const isOwn = (q: QueryStats) => own.some((t) => hasTerm(q.query, t));
+  const byImpressions = (a: QueryStats, b: QueryStats) => b.impressions - a.impressions;
+  return {
+    otherBrand: others
+      .map((o) => ({ brand: o.brand, queries: current.filter((q) => !isShared(q) && !isOwn(q) && o.terms.some((t) => hasTerm(q.query, t))).sort(byImpressions) }))
+      .filter((o) => o.queries.length),
+    shared: current.filter(isShared).sort(byImpressions),
+  };
+}
+
+/** Every query in a Crossovers result, for leaving them out of other lists. */
+export function crossoverQueries(c: Crossovers): Set<string> {
+  return new Set([...c.shared, ...c.otherBrand.flatMap((o) => o.queries)].map((q) => q.query));
 }

@@ -101,7 +101,6 @@ export const ga4: Connector = async (ctx) => {
   for (const [dimension, gaDim] of [
     ["landing_page", "landingPage"],
     ["device", "deviceCategory"],
-    ["city", "city"],
     ["source_medium", "sessionSourceMedium"],
   ] as const) {
     const rep = await run({ dateRanges, dimensions: [{ name: "date" }, { name: gaDim }], metrics: [{ name: "sessions" }], limit: 10000 });
@@ -109,6 +108,34 @@ export const ga4: Connector = async (ctx) => {
       channelRows.push({ date: ymd(r.dimensionValues[0].value), dimension, dim_value: r.dimensionValues[1].value || "(not set)", sessions: Number(r.metricValues[0].value) });
     }
   }
+  // Cities carry their country, so bot spikes from data centres outside Canada can be spotted.
+  const cities = await run({ dateRanges, dimensions: [{ name: "date" }, { name: "city" }, { name: "country" }], metrics: [{ name: "sessions" }], limit: 10000 });
+  const cityRows = new Map<string, { date: ISODate; city: string; country: string; sessions: number }>();
+  for (const r of cities.rows ?? []) {
+    const date = ymd(r.dimensionValues[0].value);
+    const city = r.dimensionValues[1].value || "(not set)";
+    const k = `${date}|${city}`;
+    const cur = cityRows.get(k);
+    if (cur) cur.sessions += Number(r.metricValues[0].value);
+    else cityRows.set(k, { date, city, country: r.dimensionValues[2].value, sessions: Number(r.metricValues[0].value) });
+  }
+  for (const c of cityRows.values()) channelRows.push({ date: c.date, dimension: "city", dim_value: c.city, sessions: c.sessions, extra: { country: c.country } });
+
+  // Visits that aren't new visitors: the brand's own shop checkout bouncing back
+  // (a "referral" from its own domains) and tag-testing tools. Left out of visit
+  // totals and the Referral channel.
+  const own = ownHosts(ctx.account.displayName);
+  const internalByDate = new Map<ISODate, number>();
+  for (const r of channelRows) {
+    if (r.dimension !== "source_medium" || !isInternalSource(String(r.dim_value), own)) continue;
+    internalByDate.set(r.date as ISODate, (internalByDate.get(r.date as ISODate) ?? 0) + Number(r.sessions));
+  }
+  for (const [date, n] of internalByDate) {
+    points.push({ date, metric: "site_sessions", value: -n });
+    const referral = channelRows.find((r) => r.dimension === "channel" && r.date === date && r.dim_value === "Referral");
+    if (referral) referral.sessions = Math.max(0, Number(referral.sessions) - n);
+  }
+
   if (channelRows.length) {
     const { error } = await ctx.db
       .from("site_daily")
@@ -117,6 +144,22 @@ export const ga4: Connector = async (ctx) => {
   }
   return { metrics: sum(points), extraRows: channelRows.length };
 };
+
+/** The site's own hosts, from the account name "People Suq (https://peoplesuq.com)". */
+export function ownHosts(displayName: string | null): string[] {
+  const host = displayName?.match(/https?:\/\/([^/)\s]+)/)?.[1]?.replace(/^www\./, "");
+  return host ? [host] : [];
+}
+
+const TESTING_SOURCES = /^(tagassistant\.google\.com|localhost(:\d+)?|127\.0\.0\.1(:\d+)?|github\.com|[\w-]+\.vercel\.app)$/i;
+
+/** "0i9uvm-p2.myshopify.com / referral" or "tagassistant.google.com / referral" → true. Exported for tests. */
+export function isInternalSource(sourceMedium: string, own: string[]): boolean {
+  const source = sourceMedium.split(" / ")[0].trim().toLowerCase();
+  if (TESTING_SOURCES.test(source)) return true;
+  if (/(^|\.)myshopify\.com$/.test(source) || /^checkout\.shopify\.com$/.test(source)) return true;
+  return own.some((h) => source === h || source.endsWith(`.${h}`));
+}
 
 // ── Search Console ─────────────────────────────────────────────────────────
 

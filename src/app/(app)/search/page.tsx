@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { BrandSection } from "@/components/brand-section";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { BreakdownList, KeywordBoard, QueryList } from "@/components/search/search-views";
+import { BreakdownList, CrossoverNote, KeywordBoard, QueryList } from "@/components/search/search-views";
 import { StatTile } from "@/components/stat-tile";
 import { loadSearchSite } from "@/lib/data/search-site";
 import { formatRange, formatShort } from "@/lib/dates";
@@ -60,6 +60,7 @@ async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">
                       <QueryList queries={b.discovered} empty="No other searches yet." />
                     </div>
                   </div>
+                  <CrossoverNote site={b.brand.website?.replace(/^https?:\/\//, "") ?? b.brand.name} crossovers={b.crossovers} />
                 </>
               )}
             </section>
@@ -75,10 +76,18 @@ async function SearchSite({ searchParams }: { searchParams: PageProps<"/search">
               </div>
               {ctx.mode === "live" && (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <BreakdownList title="Where visits came from" items={b.site.channels} />
+                  <BreakdownList title="Where visits came from" items={b.site.channels} note="Your own shop checkout and tag-testing tools aren't counted as visits." />
                   <BreakdownList title="Pages people landed on" items={b.site.pages} />
                   <BreakdownList title="Phone or computer" items={b.site.devices} format={(d) => d.charAt(0).toUpperCase() + d.slice(1)} />
-                  <BreakdownList title="Cities" items={b.site.cities} />
+                  <BreakdownList
+                    title="Cities"
+                    items={b.site.cities}
+                    note={
+                      b.site.botVisits
+                        ? `Left out ${b.site.botVisits} likely bot visits (${b.site.botCities.slice(0, 4).join(", ")}${b.site.botCities.length > 4 ? "…" : ""}): data-centre towns and one-day spikes from outside Canada.`
+                        : undefined
+                    }
+                  />
                 </div>
               )}
             </section>

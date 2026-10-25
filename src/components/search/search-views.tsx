@@ -1,5 +1,5 @@
 import { formatExact } from "@/lib/format";
-import { shortPage, type Badge, type KeywordResult, type QueryStats } from "@/lib/search";
+import { shortPage, type Badge, type Crossovers, type KeywordResult, type QueryStats } from "@/lib/search";
 import type { Breakdown } from "@/lib/data/search-site";
 import { AddKeyword, RemoveKeyword } from "./keyword-editor";
 
@@ -130,7 +130,7 @@ export function QueryList({ queries, empty, note }: { queries: QueryStats[]; emp
 }
 
 /** A ranked breakdown with thin bars (visits by channel, page, device or city). */
-export function BreakdownList({ title, items, format = (s) => s }: { title: string; items: Breakdown[]; format?: (label: string) => string }) {
+export function BreakdownList({ title, items, format = (s) => s, note }: { title: string; items: Breakdown[]; format?: (label: string) => string; note?: string }) {
   const total = items.reduce((t, i) => t + i.sessions, 0);
   const max = Math.max(1, ...items.map((i) => i.sessions));
   return (
@@ -154,6 +154,31 @@ export function BreakdownList({ title, items, format = (s) => s }: { title: stri
           ))}
         </ul>
       )}
+      {note && <p className="mt-3 text-xs text-muted">{note}</p>}
+    </div>
+  );
+}
+
+/** Searches for the other brand's name (or a name both share) that showed this site, kept apart from the lists above. */
+export function CrossoverNote({ site, crossovers }: { site: string; crossovers: Crossovers }) {
+  if (!crossovers.otherBrand.length && !crossovers.shared.length) return null;
+  const list = (qs: QueryStats[]) => qs.slice(0, 4).map((q) => `"${q.query}" (shown ${count(q.impressions)}, ${count(q.clicks)} click${q.clicks === 1 ? "" : "s"})`).join(", ");
+  return (
+    <div className="rounded-2xl border border-dashed border-line p-5 text-sm text-ink-2">
+      <p className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Name crossover</p>
+      <ul className="flex flex-col gap-1.5">
+        {crossovers.otherBrand.map((o) => (
+          <li key={o.brand}>
+            <span className="font-semibold text-ink">Looking for {o.brand}, found {site}:</span> {list(o.queries)}.
+          </li>
+        ))}
+        {crossovers.shared.length > 0 && (
+          <li>
+            <span className="font-semibold text-ink">Shared name, could be either brand:</span> {list(crossovers.shared)}.
+          </li>
+        )}
+      </ul>
+      <p className="mt-2 text-xs text-muted">These are kept out of Quick wins and Searches you didn&apos;t know about, so those only show searches meant for this brand.</p>
     </div>
   );
 }

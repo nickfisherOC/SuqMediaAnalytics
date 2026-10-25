@@ -6,7 +6,8 @@ import { MetricStore } from "@/lib/metrics/engine";
 import { buildFigure, type Figure } from "@/lib/pack";
 import { rangeLength, type DateRange } from "@/lib/periods";
 import { compareLabel } from "@/lib/review";
-import { byQuery, discovered, keywordResults, quickWins, type Keyword, type KeywordResult, type QueryStats, type SearchRow } from "@/lib/search";
+import { byQuery, crossoverQueries, crossovers, discovered, keywordResults, nameTerms, quickWins, type Crossovers, type Keyword, type KeywordResult, type QueryStats, type SearchRow } from "@/lib/search";
+import { cityBreakdown } from "@/lib/site";
 import { createUserClient } from "@/lib/supabase/server";
 import { getAppContext, getMetricRows, type AppContext } from "./source";
 
@@ -24,9 +25,11 @@ export interface BrandSearchSite {
   keywords: KeywordResult[];
   quickWins: QueryStats[];
   discovered: QueryStats[];
+  /** Searches for the other brand's name, or a name both share. */
+  crossovers: Crossovers;
   /** Latest day Search Console has data for (it runs 2-3 days behind). */
   searchDataTo: ISODate | null;
-  site: { channels: Breakdown[]; pages: Breakdown[]; devices: Breakdown[]; cities: Breakdown[] };
+  site: { channels: Breakdown[]; pages: Breakdown[]; devices: Breakdown[]; cities: Breakdown[]; botVisits: number; botCities: string[] };
 }
 
 export interface SearchSitePage {
@@ -63,7 +66,7 @@ async function pagedRows<T>(fetchPage: (from: number, to: number) => PromiseLike
 type Db = Awaited<ReturnType<typeof createUserClient>>;
 
 /** Tracked keywords, quick wins and discovered searches for one brand and period. */
-export async function loadSearch(db: Db, brand: BrandSettings, period: DateRange, compareWindows: DateRange[], accountIds?: string[]) {
+export async function loadSearch(db: Db, brand: BrandSettings, allBrands: BrandSettings[], period: DateRange, compareWindows: DateRange[], accountIds?: string[]) {
   let searchIds = accountIds;
   if (!searchIds) {
     const { data } = await db.from("accounts").select("id").eq("brand_id", brand.id).eq("platform", "search_console").neq("status", "sample");
@@ -81,10 +84,17 @@ export async function loadSearch(db: Db, brand: BrandSettings, period: DateRange
   const previous = byQuery(prev.flat().map(num));
   const { data: kw } = await db.from("search_keywords").select("id, keyword, group_name").eq("brand_id", brand.id).order("created_at");
   const keywords: Keyword[] = (kw ?? []).map((k) => ({ id: k.id, keyword: k.keyword, group: k.group_name }));
+  const cross = crossovers(
+    current,
+    nameTerms(brand.name),
+    allBrands.filter((b) => b.slug !== brand.slug).map((b) => ({ brand: b.name, terms: nameTerms(b.name) })),
+  );
+  const exclude = crossoverQueries(cross);
   return {
     keywords: keywordResults(keywords, current, previous),
-    quickWins: quickWins(current),
-    discovered: discovered(current, keywords),
+    quickWins: quickWins(current, 5, 8, exclude),
+    discovered: discovered(current, keywords, 12, exclude),
+    crossovers: cross,
     searchDataTo: cur.map((r) => r.date).sort().at(-1) ?? null,
     clicks: current.reduce((t, q) => t + q.clicks, 0),
   };
@@ -122,21 +132,22 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
         keywords: [],
         quickWins: [],
         discovered: [],
+        crossovers: { otherBrand: [], shared: [] },
         searchDataTo: null,
-        site: { channels: [], pages: [], devices: [], cities: [] },
+        site: { channels: [], pages: [], devices: [], cities: [], botVisits: 0, botCities: [] },
       };
       if (!db) return result;
 
       const { data: accounts } = await db.from("accounts").select("id, platform").eq("brand_id", brand.id).in("platform", ["search_console", "ga4"]).neq("status", "sample");
       const ids = (p: string) => (accounts ?? []).filter((a) => a.platform === p).map((a) => a.id);
 
-      const search = await loadSearch(db, brand, period, compare.windows, ids("search_console"));
+      const search = await loadSearch(db, brand, ctx.brands, period, compare.windows, ids("search_console"));
       if (search) Object.assign(result, search);
 
       const siteIds = ids("ga4");
       if (siteIds.length) {
-        const siteRows = await pagedRows<{ dimension: string; dim_value: string; sessions: number }>((a, b) =>
-          db.from("site_daily").select("dimension, dim_value, sessions").in("account_id", siteIds).in("dimension", ["channel", "landing_page", "device", "city"]).gte("date", period.from).lte("date", period.to).range(a, b),
+        const siteRows = await pagedRows<{ date: string; dimension: string; dim_value: string; sessions: number; extra: { country?: string } | null }>((a, b) =>
+          db.from("site_daily").select("date, dimension, dim_value, sessions, extra").in("account_id", siteIds).in("dimension", ["channel", "landing_page", "device", "city"]).gte("date", period.from).lte("date", period.to).range(a, b),
         );
         const top = (dimension: string, limit: number): Breakdown[] => {
           const m = new Map<string, number>();
@@ -147,7 +158,10 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
             .sort((a, b) => b.sessions - a.sessions)
             .slice(0, limit);
         };
-        result.site = { channels: top("channel", 8), pages: top("landing_page", 8), devices: top("device", 4), cities: top("city", 8) };
+        const city = cityBreakdown(
+          siteRows.filter((r) => r.dimension === "city").map((r) => ({ date: r.date, city: r.dim_value, country: r.extra?.country ?? null, sessions: Number(r.sessions) })),
+        );
+        result.site = { channels: top("channel", 8), pages: top("landing_page", 8), devices: top("device", 4), cities: city.cities, botVisits: city.botVisits, botCities: city.botCities };
       }
       return result;
     }),

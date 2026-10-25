@@ -20,10 +20,13 @@ export function RemoveKeyword({ id, keyword }: { id: string; keyword: string }) 
   );
 }
 
+const NEW = "__new__";
+
 /** Admins: add a search to track, into an existing group or a new one. */
 export function AddKeyword({ brand, groups }: { brand: string; groups: string[] }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [group, setGroup] = useState(groups[0] ?? NEW);
   const form = useRef<HTMLFormElement>(null);
   return (
     <form
@@ -33,6 +36,7 @@ export function AddKeyword({ brand, groups }: { brand: string; groups: string[] 
           const r = await addKeyword(fd);
           if (r.ok) {
             form.current?.reset();
+            setGroup(groups[0] ?? NEW);
             setError(null);
           } else setError(r.message ?? "Couldn't add it.");
         })
@@ -41,12 +45,19 @@ export function AddKeyword({ brand, groups }: { brand: string; groups: string[] 
     >
       <input type="hidden" name="brand" value={brand} />
       <input name="keyword" required placeholder="Add a search to track, e.g. custom jackets edmonton" aria-label="Search to track" className="h-9 min-w-64 flex-1 rounded-lg border border-line bg-page px-3 text-sm" />
-      <input name="group" list={`groups-${brand}`} placeholder="Group" aria-label="Group" defaultValue={groups[0] ?? ""} className="h-9 w-48 rounded-lg border border-line bg-page px-3 text-sm" />
-      <datalist id={`groups-${brand}`}>
+      <select value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Group" className="h-9 rounded-lg border border-line bg-page px-2 text-sm">
         {groups.map((g) => (
-          <option key={g} value={g} />
+          <option key={g} value={g}>
+            {g}
+          </option>
         ))}
-      </datalist>
+        <option value={NEW}>New group…</option>
+      </select>
+      {group === NEW ? (
+        <input name="group" required placeholder="New group name" aria-label="New group name" className="h-9 w-44 rounded-lg border border-line bg-page px-3 text-sm" />
+      ) : (
+        <input type="hidden" name="group" value={group} />
+      )}
       <button type="submit" disabled={pending} className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-page disabled:opacity-60">
         {pending ? "Adding…" : "Track it"}
       </button>

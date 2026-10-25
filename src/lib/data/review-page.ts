@@ -53,7 +53,7 @@ async function searchLines(reviews: BrandReview[], controls: Controls, ctx: AppC
     reviews
       .filter((r) => r.brand.platforms.includes("search_console"))
       .map(async (r) => {
-        const s = await loadSearch(db, r.brand, controls.period, controls.compare.windows);
+        const s = await loadSearch(db, r.brand, ctx.brands, controls.period, controls.compare.windows);
         out[r.brand.slug] = s ? searchLine(s.keywords, s.clicks) : null;
       }),
   );
