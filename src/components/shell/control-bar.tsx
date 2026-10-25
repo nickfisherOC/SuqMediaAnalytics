@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import clsx from "clsx";
 import type { BrandSettings } from "@/config/brands";
+import { NAV } from "@/components/nav";
 import { parseControls } from "@/lib/controls";
 import { formatRange, type ISODate } from "@/lib/dates";
 import { COMPARE_KEYS, COMPARE_LABELS, PERIOD_KEYS, PERIOD_LABELS, type PeriodKey } from "@/lib/periods";
@@ -44,10 +45,16 @@ export function ControlBar({ brands, today }: Props) {
     startTransition(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
   }
 
+  // Some pages only cover certain brands (Sales Pipeline: brands with a CRM). There the buttons show just
+  // those brands, without touching the brand in the URL, so other pages keep what was picked.
+  const scope = NAV.find((n) => n.brandScope && n.needs && pathname.startsWith(n.href));
+  const scopedBrands = scope ? brands.filter((b) => b.platforms.includes(scope.needs!)) : null;
+  const shown = scopedBrands ?? brands;
   const brandOptions = [
-    ...brands.map((b) => ({ value: b.slug, label: b.name, accent: b.accent as { light: string; dark: string } | null })),
-    { value: "all", label: "All brands", accent: null },
+    ...shown.map((b) => ({ value: b.slug, label: b.name, accent: b.accent as { light: string; dark: string } | null })),
+    ...(scopedBrands && scopedBrands.length < 2 ? [] : [{ value: "all", label: "All brands", accent: null }]),
   ];
+  const selectedBrand = scopedBrands?.length === 1 ? scopedBrands[0].slug : props.brand;
 
   return (
     <div
@@ -56,16 +63,16 @@ export function ControlBar({ brands, today }: Props) {
     >
       <fieldset className="flex w-full flex-col gap-1 sm:w-auto">
         <legend className="sr-only mb-1 text-xs font-medium text-muted sm:not-sr-only">Brand</legend>
-        <div className="flex rounded-lg bg-surface-2 p-0.5" role="radiogroup" aria-label="Brand">
+        <div className="flex rounded-lg bg-surface-2 p-0.5 sm:w-fit" role="radiogroup" aria-label="Brand">
           {brandOptions.map((o) => {
-            const selected = props.brand === o.value;
+            const selected = selectedBrand === o.value;
             return (
               <button
                 key={o.value}
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => update({ brand: o.value })}
+                onClick={() => !scopedBrands && update({ brand: o.value })}
                 // Each brand's own colour when selected (light/dark variants via .brand-scope); "All brands" uses ink.
                 style={o.accent ? ({ "--brand-light": o.accent.light, "--brand-dark": o.accent.dark } as React.CSSProperties) : undefined}
                 className={clsx(
@@ -88,6 +95,11 @@ export function ControlBar({ brands, today }: Props) {
             );
           })}
         </div>
+        {scope && scopedBrands && (
+          <span className="text-xs text-muted">
+            {scope.brandScope}: {scopedBrands.map((b) => b.name).join(", ")} only
+          </span>
+        )}
       </fieldset>
 
       <label className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
