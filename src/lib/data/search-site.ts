@@ -138,7 +138,7 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
       };
       if (!db) return result;
 
-      const { data: accounts } = await db.from("accounts").select("id, platform").eq("brand_id", brand.id).in("platform", ["search_console", "ga4"]).neq("status", "sample");
+      const { data: accounts } = await db.from("accounts").select("id, platform, settings").eq("brand_id", brand.id).in("platform", ["search_console", "ga4"]).neq("status", "sample");
       const ids = (p: string) => (accounts ?? []).filter((a) => a.platform === p).map((a) => a.id);
 
       const search = await loadSearch(db, brand, ctx.brands, period, compare.windows, ids("search_console"));
@@ -160,6 +160,8 @@ export async function loadSearchSite(params: Record<string, string | string[] | 
         };
         const city = cityBreakdown(
           siteRows.filter((r) => r.dimension === "city").map((r) => ({ date: r.date, city: r.dim_value, country: r.extra?.country ?? null, sessions: Number(r.sessions) })),
+          8,
+          (accounts ?? []).filter((a) => a.platform === "ga4").flatMap((a) => ((a.settings as { excluded_cities?: string[] } | null)?.excluded_cities ?? [])),
         );
         result.site = { channels: top("channel", 8), pages: top("landing_page", 8), devices: top("device", 4), cities: city.cities, botVisits: city.botVisits, botCities: city.botCities };
       }

@@ -27,9 +27,12 @@ export interface CityDay {
   sessions: number;
 }
 
-export function cityBreakdown(rows: CityDay[], limit = 8) {
+/** `excluded`: cities an admin marked as bots for this site (account settings.excluded_cities). */
+export function cityBreakdown(rows: CityDay[], limit = 8, excluded: string[] = []) {
+  const always = new Set(excluded);
   const isBot = (r: CityDay) =>
-    DATA_CENTRE_CITIES.has(r.city) || (r.country !== null && r.country !== "Canada" && r.sessions >= SPIKE_SESSIONS);
+    DATA_CENTRE_CITIES.has(r.city) ||
+    always.has(r.city) || (r.country !== null && r.country !== "Canada" && r.sessions >= SPIKE_SESSIONS);
   const kept = new Map<string, number>();
   const leftOut = new Map<string, number>();
   for (const r of rows) {
