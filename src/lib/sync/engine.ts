@@ -99,7 +99,8 @@ export async function syncAccount(
       .eq("id", account.id);
     return { account: label, ok: true, rows: total };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    // Supabase errors are plain objects with a message, not Error instances.
+    const message = e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
     // Keep whatever was captured: it helps diagnose the failure.
     await writeRaw(db, account.id, run.id, raws).catch(() => {});
     await db.from("sync_runs").update({ status: "failed", finished_at: new Date().toISOString(), error: message }).eq("id", run.id);

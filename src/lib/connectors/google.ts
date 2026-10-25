@@ -139,7 +139,7 @@ export const ga4: Connector = async (ctx) => {
   if (channelRows.length) {
     const { error } = await ctx.db
       .from("site_daily")
-      .upsert(channelRows.map((r) => ({ ...r, account_id: ctx.account.id, is_sample: false })), { onConflict: "account_id,date,dimension,dim_value" });
+      .upsert(channelRows.map((r) => ({ extra: {}, ...r, account_id: ctx.account.id, is_sample: false })), { onConflict: "account_id,date,dimension,dim_value" });
     if (error) throw error;
   }
   return { metrics: sum(points), extraRows: channelRows.length };
