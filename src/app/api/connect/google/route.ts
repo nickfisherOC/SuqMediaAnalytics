@@ -29,16 +29,19 @@ async function handle(request: NextRequest) {
   }
 
   const state = randomBytes(24).toString("hex");
+  const youtubeOnly = request.nextUrl.searchParams.get("only") === "youtube";
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({
     client_id: googleClient().id,
     redirect_uri: new URL("/api/connect/google/callback", request.nextUrl.origin).toString(),
     response_type: "code",
-    scope: (request.nextUrl.searchParams.get("only") === "youtube" ? GOOGLE_SCOPES.filter((sc) => sc.includes("youtube") || sc.includes("yt-analytics")) : GOOGLE_SCOPES).join(" "),
+    scope: (youtubeOnly ? GOOGLE_SCOPES.filter((sc) => sc.includes("youtube") || sc.includes("yt-analytics")) : GOOGLE_SCOPES).join(" "),
     // Offline + consent so Google always returns a refresh token for the nightly sync.
     access_type: "offline",
     prompt: "consent select_account",
-    include_granted_scopes: "true",
+    // For YouTube alone, don't fold in Analytics/Search Console permissions granted earlier:
+    // the channel owner should see just the two YouTube lines.
+    include_granted_scopes: youtubeOnly ? "false" : "true",
     state,
   }).toString();
 
