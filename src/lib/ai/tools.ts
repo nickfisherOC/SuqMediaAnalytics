@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BrandSettings } from "@/config/brands";
 import { caveatsFor, METRICS } from "@/config/metrics";
 import { isPlatform, PLATFORM_INFO, type Platform } from "@/config/platforms";
-import { groupByDay, type ContentCard } from "@/lib/content";
+import { groupContent, type ContentCard } from "@/lib/content";
 import { addDays, diffDays, isISODate, type ISODate } from "@/lib/dates";
 import { aggregate, compareValues, dailySeries, MetricStore, type PlatformScope } from "@/lib/metrics/engine";
 
@@ -252,7 +252,7 @@ async function getTopContentTool(ctx: ToolContext, input: Input) {
       status: c.status,
       url: c.url,
     })),
-    same_video_across_platforms: groupByDay(brand.slug, cards)
+    same_video_across_platforms: groupContent(brand.slug, cards)
       .slice(0, limit)
       .map((g) => ({ day: g.dayLabel, date: g.date, title: g.title, total_views: g.totalViews, by_platform: g.byPlatform.map((b) => ({ platform: PLATFORM_INFO[b.platform].label, views: b.views })) })),
   };

@@ -5,7 +5,7 @@ import { addDays, minDate } from "@/lib/dates";
 import { MetricStore } from "@/lib/metrics/engine";
 import { buildWeekPack, type WeekPack } from "@/lib/pack";
 import { rangeLength } from "@/lib/periods";
-import { bestPerPlatform, groupByDay, type ContentCard, type ContentGroup } from "@/lib/content";
+import { bestPerPlatform, groupContent, type ContentCard, type ContentGroup } from "@/lib/content";
 import type { ISODate } from "@/lib/dates";
 import type { MetricRow } from "@/lib/metrics/engine";
 import { queryContent, queryFlags, queryMetricRows, type Flag } from "./queries";
@@ -55,7 +55,7 @@ export async function loadWeek(controls: Controls, reader: WeekReader): Promise<
       brand,
       pack: buildWeekPack(store, brand, period, compare),
       flags: flags.filter((f) => f.brand === brand.slug),
-      groups: groupByDay(brand.slug, content.filter((c) => c.brand === brand.slug)),
+      groups: groupContent(brand.slug, content.filter((c) => c.brand === brand.slug)),
       best: bestPerPlatform(content.filter((c) => c.brand === brand.slug)),
     };
   });

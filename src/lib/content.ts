@@ -1,6 +1,6 @@
 import { seriesDay } from "@/config/series";
 import type { Platform } from "@/config/platforms";
-import type { ISODate } from "@/lib/dates";
+import { addDays, type ISODate } from "@/lib/dates";
 
 /** One post or video with its latest lifetime numbers. */
 export interface ContentCard {
@@ -20,7 +20,7 @@ export interface ContentCard {
   capturedOn: ISODate | null;
 }
 
-/** The same piece of content across platforms: grouped by brand and publish day. */
+/** The same piece of content across platforms (see groupContent). */
 export interface ContentGroup {
   key: string;
   date: ISODate;
@@ -48,22 +48,50 @@ export function titleFrom(captions: (string | null)[]): string {
   return sentence.length > 80 ? `${sentence.slice(0, 77).trimEnd()}…` : sentence;
 }
 
-export function groupByDay(brand: string, items: ContentCard[]): ContentGroup[] {
-  const byDate = new Map<ISODate, ContentCard[]>();
+const DAY_TAG = /\bday\s*(\d{1,2})\b/i;
+
+/** The series day a caption names ("… Day 17 🎃" → 17), or null. */
+export function taggedDay(caption: string | null): number | null {
+  const m = caption?.match(DAY_TAG);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * The same piece of content across platforms. Series videos group by the
+ * "Day N" in their caption (so a late upload still joins its day). Other
+ * posts group by publish day, apart from that day's series video. An
+ * untagged post on a series day joins the day only when its platform has no
+ * tagged post for it (a series video someone forgot to tag).
+ */
+export function groupContent(brand: string, items: ContentCard[]): ContentGroup[] {
+  const dayOf = (it: ContentCard) => {
+    const sd = seriesDay(brand, it.publishedDate) ?? seriesDay(brand, addDays(it.publishedDate, -1));
+    const tag = taggedDay(it.caption);
+    return sd && tag !== null && tag >= 1 && tag <= sd.series.days ? tag : null;
+  };
+  const taggedFor = new Set(items.map((it) => (dayOf(it) !== null ? `${it.platform}:${dayOf(it)}` : "")));
+
+  const byKey = new Map<string, ContentCard[]>();
+  const labels = new Map<string, string | null>();
   for (const it of items) {
-    const list = byDate.get(it.publishedDate) ?? [];
-    list.push(it);
-    byDate.set(it.publishedDate, list);
+    let day = dayOf(it);
+    if (day === null) {
+      const sd = seriesDay(brand, it.publishedDate);
+      if (sd && taggedDay(it.caption) === null && !taggedFor.has(`${it.platform}:${sd.day}`)) day = sd.day;
+    }
+    const key = day !== null ? `${brand}-day-${day}` : `${brand}-${it.publishedDate}`;
+    labels.set(key, day !== null ? `Day ${day}` : null);
+    byKey.set(key, [...(byKey.get(key) ?? []), it]);
   }
+
   const groups: ContentGroup[] = [];
-  for (const [date, list] of byDate) {
+  for (const [key, list] of byKey) {
     const byPlatform = new Map<Platform, number>();
     for (const it of list) byPlatform.set(it.platform, (byPlatform.get(it.platform) ?? 0) + (it.views ?? 0));
-    const sd = seriesDay(brand, date);
     groups.push({
-      key: `${brand}-${date}`,
-      date,
-      dayLabel: sd ? `Day ${sd.day}` : null,
+      key,
+      date: list.map((i) => i.publishedDate).sort()[0],
+      dayLabel: labels.get(key) ?? null,
       title: titleFrom(list.map((i) => i.caption)),
       items: list.sort((a, b) => (b.views ?? 0) - (a.views ?? 0)),
       totalViews: [...byPlatform.values()].reduce((a, b) => a + b, 0),

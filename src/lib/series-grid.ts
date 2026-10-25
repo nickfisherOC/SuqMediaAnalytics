@@ -1,6 +1,6 @@
 import { SOCIAL_PLATFORMS, type SocialPlatform } from "@/config/platforms";
 import type { Series } from "@/config/series";
-import { titleFrom, type ContentCard } from "@/lib/content";
+import { taggedDay, titleFrom, type ContentCard } from "@/lib/content";
 import { addDays, type ISODate } from "@/lib/dates";
 
 /**
@@ -37,12 +37,7 @@ export interface SeriesGrid {
   asOf: ISODate | null;
 }
 
-const DAY_TAG = /\bday\s*(\d{1,2})\b/i;
-
-export function taggedDay(caption: string | null): number | null {
-  const m = caption?.match(DAY_TAG);
-  return m ? Number(m[1]) : null;
-}
+export { taggedDay };
 
 export function buildSeriesGrid(series: Series, brandPlatforms: string[], cards: ContentCard[], today: ISODate): SeriesGrid {
   const platforms = SOCIAL_PLATFORMS.filter((p) => brandPlatforms.includes(p));
