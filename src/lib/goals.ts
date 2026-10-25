@@ -84,7 +84,16 @@ export function goalProgress(goal: Goal, store: MetricStore, brandPlatforms: Pla
   const yesterday = addDays(today, -1);
   const through = yesterday < win.to ? yesterday : win.to;
   const started = through >= win.from;
-  const value = started ? aggregate(store, goal.brand, goal.metric, goal.platform, brandPlatforms, [{ from: win.from, to: through }]).value : null;
+  // Running totals (followers) in a weekly or monthly goal mean growth: the total at the end of the
+  // window minus the total just before it started ("+5 followers a week").
+  const growth = isGrowthGoal(goal);
+  const at = (from: ISODate, to: ISODate) => aggregate(store, goal.brand, goal.metric, goal.platform, brandPlatforms, [{ from, to }]).value;
+  const gained = (from: ISODate, to: ISODate) => {
+    const end = at(from, to);
+    const start = at(addDays(from, -60), addDays(from, -1));
+    return end === null || start === null ? null : end - start;
+  };
+  const value = !started ? null : growth ? gained(win.from, through) : at(win.from, through);
 
   const totalDays = diffDays(win.from, win.to) + 1;
   const elapsed = started ? diffDays(win.from, through) + 1 : 0;
@@ -93,7 +102,7 @@ export function goalProgress(goal: Goal, store: MetricStore, brandPlatforms: Pla
 
   // Pace only makes sense for counts that build up over the window.
   let expected: number | null = null;
-  if (def.aggregation === "sum") expected = (goal.target * elapsed) / totalDays;
+  if (def.aggregation === "sum" || growth) expected = (goal.target * elapsed) / totalDays;
   else if (def.aggregation === "last" && goal.cadence === "deadline") {
     // Followers and similar: a straight line from where it was at the start to the target.
     const base = aggregate(store, goal.brand, goal.metric, goal.platform, brandPlatforms, [{ from: addDays(win.from, -30), to: win.from }]).value;
@@ -102,14 +111,14 @@ export function goalProgress(goal: Goal, store: MetricStore, brandPlatforms: Pla
 
   let state: GoalState;
   if (value === null) state = "no_data";
-  else if (meets(value, goal.target, dir) && (dir === "at_least" || finished || def.aggregation !== "sum")) state = "hit";
+  else if (meets(value, goal.target, dir) && (dir === "at_least" || finished || (def.aggregation !== "sum" && !growth))) state = "hit";
   else if (finished) state = "missed";
   else if (expected === null) state = meets(value, goal.target, dir) ? "on_track" : "behind";
   else state = dir === "at_least" ? (value >= expected * 0.9 ? "on_track" : "behind") : value <= expected * 1.1 ? "on_track" : "behind";
 
   let previous: GoalProgress["previous"] = null;
   if (win.previous) {
-    const v = aggregate(store, goal.brand, goal.metric, goal.platform, brandPlatforms, [win.previous]).value;
+    const v = growth ? gained(win.previous.from, win.previous.to) : at(win.previous.from, win.previous.to);
     previous = { value: v, met: v === null ? null : meets(v, goal.target, dir) };
   }
 
@@ -128,12 +137,20 @@ export function goalProgress(goal: Goal, store: MetricStore, brandPlatforms: Pla
   };
 }
 
-/** "15 leads a week", "Cost per lead under $15 a month", "100 Instagram followers by Oct 31". */
+/** Weekly or monthly goals on a running total (followers) are about growth, not the total. */
+export function isGrowthGoal(goal: Pick<Goal, "metric" | "cadence">): boolean {
+  return goal.cadence !== "deadline" && getMetric(goal.metric).aggregation === "last";
+}
+
+/** "15 leads a week", "5 new Facebook followers a week", "Cost per lead under $15 a month", "100 Instagram followers by Oct 31". */
 export function goalText(p: GoalProgress): string {
   const unit = getMetric(p.goal.metric).unit;
   const target = formatExact(p.goal.target, unit);
   const when = p.goal.cadence === "week" ? "a week" : p.goal.cadence === "month" ? "a month" : `by ${formatShort(p.goal.deadline ?? p.to)}`;
-  return p.direction === "at_most" ? `${p.goal.label} under ${target} ${when}` : `${target} ${p.goal.label.toLowerCase()} ${when}`;
+  // Platform names keep their capital ("Facebook followers"); a bare metric name reads in lower case ("leads").
+  const label = p.goal.platform === "all" ? p.goal.label.toLowerCase() : p.goal.label;
+  if (p.direction === "at_most") return `${p.goal.label} under ${target} ${when}`;
+  return `${target} ${isGrowthGoal(p.goal) ? "new " : ""}${label} ${when}`;
 }
 
 export const GOAL_STATE_LABEL: Record<GoalState, string> = {

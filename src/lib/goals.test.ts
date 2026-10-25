@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MetricStore, type MetricRow } from "@/lib/metrics/engine";
-import { goalProgress, goalWindow, type Goal } from "./goals";
+import { goalProgress, goalText, goalWindow, type Goal } from "./goals";
 
 const rows = (metric: string, platform: MetricRow["platform"], values: Record<string, number>): MetricRow[] =>
   Object.entries(values).map(([date, value]) => ({ brand: "suq-media", platform, date, metric, value, isSample: false }));
@@ -76,5 +76,15 @@ describe("goals", () => {
     const store = new MetricStore(rows("leads", "lead_rescue", { "2026-10-26": 3 }));
     const p = goalProgress(goal({ cadence: "deadline", startDate: "2026-10-20", deadline: "2026-10-26" }), store, platforms, "2026-10-28");
     expect(p.state).toBe("missed");
+  });
+
+  it("counts followers gained, not the total, for weekly goals", () => {
+    const store = new MetricStore(
+      rows("followers", "facebook", { "2026-10-25": 114, "2026-10-26": 115, "2026-10-27": 117, "2026-10-18": 110 }).map((r) => ({ ...r, brand: "peoplesuq" })),
+    );
+    const p = goalProgress(goal({ brand: "peoplesuq", metric: "followers", platform: "facebook", label: "Facebook followers", target: 5 }), store, ["facebook"], "2026-10-28");
+    expect(p).toMatchObject({ value: 3, state: "on_track", remaining: 2 });
+    expect(p.previous).toEqual({ value: 4, met: false });
+    expect(goalText(p)).toBe("5 new Facebook followers a week");
   });
 });

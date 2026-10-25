@@ -1,6 +1,6 @@
 import { getMetric } from "@/config/metrics";
 import { formatExact } from "@/lib/format";
-import { GOAL_STATE_LABEL, goalText, type GoalProgress, type GoalState } from "@/lib/goals";
+import { GOAL_STATE_LABEL, goalText, isGrowthGoal, type GoalProgress, type GoalState } from "@/lib/goals";
 import { DeleteGoal } from "./goal-forms";
 
 const STATE_STYLE: Record<GoalState, string> = {
@@ -43,7 +43,9 @@ export function GoalCard({ p, isAdmin }: { p: GoalProgress; isAdmin: boolean }) 
           {isAdmin && <DeleteGoal id={p.goal.id} label={goalText(p)} />}
         </span>
       </header>
-      <p className="text-4xl leading-none font-semibold tracking-tight">{p.value === null ? "—" : formatExact(p.value, unit)}</p>
+      <p className="text-4xl leading-none font-semibold tracking-tight">
+        {p.value === null ? "—" : `${isGrowthGoal(p.goal) && p.value > 0 ? "+" : ""}${formatExact(p.value, unit)}`}
+      </p>
       {share !== null && (
         <div className="relative h-2 rounded-full bg-surface-2" aria-hidden>
           <div className="h-2 rounded-full bg-accent" style={{ width: `${Math.max(2, share * 100)}%` }} />
