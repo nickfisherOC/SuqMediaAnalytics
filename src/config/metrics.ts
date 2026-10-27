@@ -72,7 +72,7 @@ const META_DAYS = "Meta counts days in Pacific time, one hour behind Edmonton.";
 
 const VIEWS_CAVEATS: Partial<Record<Platform, string>> = {
   facebook: `Facebook counts every view of the Page that day, including old posts and views from ads. ${META_DAYS}`,
-  instagram: `Instagram counts every view of the account that day, including old posts. ${META_DAYS}`,
+  instagram: `Instagram counts every view of the account that day, including old posts and views from ads. ${META_DAYS}`,
   tiktok: "TikTok only reports lifetime views per video. Pulse snapshots every video nightly and counts the change, so TikTok's daily numbers start the day after it was connected.",
   youtube: "Channel views per day from YouTube Analytics, which can revise the last 2–3 days.",
 };
@@ -106,7 +106,10 @@ export const METRICS: MetricDef[] = [
     higherIsBetter: true,
     platforms: SOCIAL,
     comparableAcrossPlatforms: false,
-    caveats: ["Each platform counts a view differently, so the combined total is a rough sum."],
+    caveats: [
+      "Each platform counts a view differently, so the combined total is a rough sum.",
+      "Facebook and Instagram views include people seeing your ads, so they jump when ads run (see the Ads page for ad views on their own).",
+    ],
     platformCaveats: VIEWS_CAVEATS,
   },
   {

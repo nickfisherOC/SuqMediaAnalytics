@@ -2,7 +2,7 @@ import type { BrandSettings, TileSpec } from "@/config/brands";
 import { caveatsFor, getMetric, type Unit } from "@/config/metrics";
 import { PLATFORM_INFO, SOCIAL_PLATFORMS, type Platform } from "@/config/platforms";
 import { addDays, type ISODate } from "@/lib/dates";
-import { aggregate, compareValues, MetricStore, type Change, type PlatformScope } from "@/lib/metrics/engine";
+import { historyStartsAfter, aggregate, compareValues, MetricStore, type Change, type PlatformScope } from "@/lib/metrics/engine";
 import { rangeLength, type DateRange, type ResolvedCompare, type ResolvedPeriod } from "@/lib/periods";
 
 /**
@@ -29,6 +29,8 @@ export interface Figure {
   /** The same metric over the trailing periods, oldest first; the last point is the current period. */
   trend: { from: ISODate; to: ISODate; value: number | null }[];
   platformsUsed: Platform[];
+  /** Set when the comparison was left out because Pulse's data only starts on this day. */
+  historyFrom: ISODate | null;
   /** Platforms that should report this metric but have no data in the period. */
   platformsMissing: Platform[];
   comparableAcrossPlatforms: boolean;
@@ -93,7 +95,11 @@ export function buildFigure(
 ): Figure {
   const def = getMetric(spec.metric);
   const current = aggregate(store, brand.slug, def.key, spec.platform, brand.platforms, [period]);
-  const base = aggregate(store, brand.slug, def.key, spec.platform, brand.platforms, compare.windows);
+  // Leave the comparison out when Pulse's data starts partway through the comparison window.
+  const historyFrom = compare.windows
+    .map((w) => historyStartsAfter(store, brand.slug, def.key, spec.platform, brand.platforms, w.from))
+    .find((d) => d !== null) ?? null;
+  const base = historyFrom ? { value: null, platforms: [] } : aggregate(store, brand.slug, def.key, spec.platform, brand.platforms, compare.windows);
 
   const expected =
     def.aggregation === "ratio"
@@ -113,6 +119,7 @@ export function buildFigure(
     value: current.value,
     base: base.value,
     change: compareValues(current.value, base.value, def.higherIsBetter),
+    historyFrom,
     trend: trailingWindows(period, TREND_POINTS).map((w) => ({
       ...w,
       value: aggregate(store, brand.slug, def.key, spec.platform, brand.platforms, [w]).value,

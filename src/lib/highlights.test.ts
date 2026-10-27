@@ -10,7 +10,10 @@ const period = resolvePeriod("last_week", "2026-10-23"); // Oct 12–18 vs Oct 5
 const compare = resolveCompare(period, "previous");
 
 function rows(list: [string, string, string, number][]): MetricRow[] {
-  return list.map(([platform, metric, date, value]) => ({ brand: "peoplesuq", platform: platform as MetricRow["platform"], metric, date, value }));
+  // Real syncs report something from the day a source is connected; a follower count on the first
+  // comparison day stands in for that, so these figures have full history.
+  const starts = [...new Set(list.map(([platform]) => platform))].map((platform) => [platform, "followers", "2026-10-05", 1] as [string, string, string, number]);
+  return [...starts, ...list].map(([platform, metric, date, value]) => ({ brand: "peoplesuq", platform: platform as MetricRow["platform"], metric, date, value }));
 }
 
 describe("changeTitle", () => {
@@ -81,5 +84,17 @@ describe("buildHighlights", () => {
 
   it("every highlight points at figures in the pack", () => {
     for (const x of [...h.improved, ...h.needsWork]) expect(x.figureIds.length).toBeGreaterThan(0);
+  });
+});
+
+describe("comparisons with too little history", () => {
+  it("leaves the comparison out when data starts partway through the comparison window", () => {
+    const store = new MetricStore([
+      { brand: "peoplesuq", platform: "facebook", metric: "views", date: "2026-10-10", value: 41 },
+      { brand: "peoplesuq", platform: "facebook", metric: "views", date: "2026-10-15", value: 25855 },
+    ]);
+    const fig = buildWeekPack(store, ps, period, compare).figures["peoplesuq.views.facebook"];
+    expect(fig).toMatchObject({ historyFrom: "2026-10-10", base: null });
+    expect(buildHighlights(buildWeekPack(store, ps, period, compare)).improved.map((x) => x.title).join()).not.toContain("Facebook views");
   });
 });

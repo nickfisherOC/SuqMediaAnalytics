@@ -3,6 +3,7 @@ import { GoalLine } from "@/components/goals/goal-views";
 import { InfoTip } from "@/components/info-tip";
 import type { GoalProgress } from "@/lib/goals";
 import { PLATFORM_INFO } from "@/config/platforms";
+import { formatShort } from "@/lib/dates";
 import { formatDelta, formatPct, formatValue } from "@/lib/format";
 import type { Figure } from "@/lib/pack";
 
@@ -54,6 +55,9 @@ export function StatTile({ figure, compareLabel, sample, goal }: { figure: Figur
 
 function Delta({ change, figure, compareLabel }: { change: Figure["change"]; figure: Figure; compareLabel: string }) {
   const base = <span className="text-muted">vs {formatValue(figure.base, figure.unit)} {compareLabel}</span>;
+  if (figure.historyFrom) {
+    return <p className="text-sm text-muted">Not enough history to compare: Pulse&apos;s data starts {formatShort(figure.historyFrom)}.</p>;
+  }
   if (change.direction === null) {
     return <p className="text-sm text-muted">No {compareLabel} figure to compare with.</p>;
   }

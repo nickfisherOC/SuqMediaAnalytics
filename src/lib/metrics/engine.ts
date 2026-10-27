@@ -22,6 +22,8 @@ export type PlatformScope = Platform | "all";
 export class MetricStore {
   private index = new Map<string, Map<ISODate, number>>();
   private platformsByBrandMetric = new Map<string, Set<Platform>>();
+  /** brand|platform → first day that platform reported any non-zero number. */
+  private realStart = new Map<string, ISODate>();
   readonly hasSample: boolean;
 
   constructor(rows: MetricRow[]) {
@@ -39,6 +41,11 @@ export class MetricStore {
       if (!set) this.platformsByBrandMetric.set(bm, (set = new Set()));
       set.add(r.platform);
       if (r.isSample) sample = true;
+      if (r.value !== 0) {
+        const bp = `${r.brand}|${r.platform}`;
+        const cur = this.realStart.get(bp);
+        if (!cur || r.date < cur) this.realStart.set(bp, r.date);
+      }
     }
     this.hasSample = sample;
   }
@@ -51,6 +58,45 @@ export class MetricStore {
   get(brand: string, platform: Platform, metric: string): Map<ISODate, number> | undefined {
     return this.index.get(key(brand, platform, metric));
   }
+
+  /**
+   * The first day a platform reported anything real (any non-zero number) for the brand: when its
+   * tracking effectively began. Zero rows before that are padding from back-filling, not history.
+   */
+  dataStart(brand: string, platform: Platform): ISODate | null {
+    return this.realStart.get(`${brand}|${platform}`) ?? null;
+  }
+}
+
+/**
+ * The day a counted or rate metric's data starts, when that's after `from`:
+ * a comparison window starting earlier would hold only part of its days
+ * (e.g. 4 of 24), so comparing against it would be misleading. Running
+ * totals (followers) are fine with a partial window. Null = enough history.
+ */
+export function historyStartsAfter(
+  store: MetricStore,
+  brand: string,
+  metricKey: string,
+  scope: PlatformScope,
+  brandPlatforms: Platform[],
+  from: ISODate,
+): ISODate | null {
+  const def = getMetric(metricKey);
+  if (def.aggregation === "last") return null;
+  const refs: MetricRef[] = def.aggregation === "ratio" ? [...def.numerator, ...def.denominator] : [{ metric: def.key }];
+  // Combined totals count from when any of their platforms starts (a platform connected later
+  // doesn't wipe the comparison); ratios need every part they divide.
+  let latestStart: ISODate | null = null;
+  for (const ref of refs) {
+    const refDef = getMetric(ref.metric);
+    const platforms = ref.platform ? [ref.platform] : platformsFor(refDef, scope, brandPlatforms);
+    const starts = platforms.filter((p) => store.get(brand, p, ref.metric)).map((p) => store.dataStart(brand, p)).filter((d): d is ISODate => d !== null);
+    if (!starts.length) continue;
+    const start = starts.reduce((a, b) => (a < b ? a : b));
+    if (latestStart === null || start > latestStart) latestStart = start;
+  }
+  return latestStart !== null && latestStart > from ? latestStart : null;
 }
 
 function key(brand: string, platform: Platform, metric: string) {
