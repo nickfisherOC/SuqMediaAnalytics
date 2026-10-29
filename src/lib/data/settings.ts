@@ -4,20 +4,20 @@ import type { Series } from "@/config/series";
 import { createUserClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { querySeries } from "./queries";
-import { getAppContext, type AppContext } from "./source";
+import { getAppContext, type AppContext, type Role } from "./source";
 
 export interface Person {
   id: string;
   email: string;
   name: string | null;
-  role: "admin" | "viewer";
+  role: Role;
   joined: string;
   lastSignIn: string | null;
 }
 
 export interface PendingInvite {
   email: string;
-  role: "admin" | "viewer";
+  role: Role;
   invitedOn: string;
 }
 

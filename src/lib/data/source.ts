@@ -21,7 +21,8 @@ export type { Flag };
  * the signed-in user so RLS applies.
  */
 
-export type Role = "admin" | "viewer";
+/** Production users see only the print queue (/production). */
+export type Role = "admin" | "viewer" | "production";
 
 export interface Viewer {
   id: string;
@@ -52,12 +53,12 @@ const PREVIEW_VIEWER: Viewer = { id: "preview", email: "preview@localhost", name
 
 const sampleFor = cache((today: ISODate) => generateSampleData(addDays(today, -1)));
 
-/** Who's signed in and which brands exist. Cached for the request. */
-export const getAppContext = cache(async (): Promise<AppContext> => {
+/** Who's signed in, without the brands. Production users stop here. Cached for the request. */
+export const getViewer = cache(async (): Promise<{ mode: AppContext["mode"]; viewer: Viewer; today: ISODate }> => {
   // Per-request: "today" and the signed-in user must never be baked into a prerender.
   await connection();
   const today = todayInEdmonton();
-  if (isPreviewMode) return { mode: "preview", viewer: PREVIEW_VIEWER, brands: DEFAULT_BRANDS, today };
+  if (isPreviewMode) return { mode: "preview", viewer: PREVIEW_VIEWER, today };
 
   const supabase = await createUserClient();
   const { data: claims } = await supabase.auth.getClaims();
@@ -67,12 +68,15 @@ export const getAppContext = cache(async (): Promise<AppContext> => {
   const { data: profile } = await supabase.from("profiles").select("id, email, full_name, role").eq("id", userId).maybeSingle();
   if (!profile) redirect("/login?error=not_invited");
 
-  return {
-    mode: "live",
-    viewer: { id: profile.id, email: profile.email, name: profile.full_name, role: profile.role as Role },
-    brands: await queryBrands(supabase),
-    today,
-  };
+  return { mode: "live", viewer: { id: profile.id, email: profile.email, name: profile.full_name, role: profile.role as Role }, today };
+});
+
+/** Who's signed in and which brands exist. Cached for the request. Production users are sent to their queue. */
+export const getAppContext = cache(async (): Promise<AppContext> => {
+  const { mode, viewer, today } = await getViewer();
+  if (viewer.role === "production") redirect("/production");
+  if (mode === "preview") return { mode, viewer, brands: DEFAULT_BRANDS, today };
+  return { mode, viewer, brands: await queryBrands(await createUserClient()), today };
 });
 
 /** Daily metric rows for the given brands and date range. */

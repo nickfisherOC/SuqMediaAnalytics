@@ -20,6 +20,7 @@ export const NAV: NavItem[] = [
   { href: "/ads", label: "Ads", needs: "meta_ads" },
   { href: "/search", label: "Search & Site" },
   { href: "/pipeline", label: "Sales Pipeline", needs: "lead_rescue", brandScope: "B2B sales pipeline" },
+  { href: "/production", label: "Production", needs: "lead_rescue", brandScope: "Print queue" },
   { href: "/goals", label: "Goals" },
   { href: "/connections", label: "Connections" },
   { href: "/settings", label: "Settings", adminOnly: true },

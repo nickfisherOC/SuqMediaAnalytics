@@ -27,7 +27,7 @@ const done = (message?: string): ActionResult => {
   refresh();
   return { ok: true, message };
 };
-const role = (v: unknown) => (v === "admin" ? "admin" : "viewer");
+const role = (v: unknown) => (v === "admin" || v === "production" ? v : "viewer");
 
 // ── People ──────────────────────────────────────────────────────────────────
 

@@ -196,6 +196,23 @@ export const leadRescue: Connector = async (ctx) => {
     if (error) throw error;
   }
 
+  // Won deals go into the print queue's first step, once each (removed jobs aren't re-added).
+  const wonIds = new Set(savedStages.filter((s) => s.is_won).map((s) => s.id));
+  const won = saved.filter((l) => l.stage_id && wonIds.has(l.stage_id));
+  if (won.length) {
+    const { data: firstStep, error: fsErr } = await ctx.db.from("production_steps").select("id").order("position").limit(1).maybeSingle();
+    if (fsErr) throw fsErr;
+    if (firstStep) {
+      const contactByLead = new Map(contactRows.map((c) => [c.lead_id, c]));
+      const jobs = won.map((l) => {
+        const c = contactByLead.get(l.id);
+        return { brand_id: ctx.account.brandId, lead_id: l.id, title: (c?.company || c?.name || "Won deal").slice(0, 120), url: c?.url ?? null, step_id: firstStep.id };
+      });
+      const { error } = await ctx.db.from("production_jobs").upsert(jobs, { onConflict: "lead_id", ignoreDuplicates: true });
+      if (error) throw error;
+    }
+  }
+
   // Stage history: one event whenever the stage differs from what we last saw.
   const events = saved
     .filter((l) => l.stage_id && existingByExt.get(l.external_id)?.stage_id !== l.stage_id)

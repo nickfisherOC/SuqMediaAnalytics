@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { cancelInvite, inviteUser, removeUser, setRole } from "@/app/(app)/settings/actions";
 import type { PendingInvite, Person } from "@/lib/data/settings";
 
+const ROLE_LABEL: Record<string, string> = { admin: "Admin", viewer: "Viewer", production: "Production only" };
+
 const card = "rounded-2xl border border-line bg-surface p-5";
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Edmonton", month: "short", day: "numeric", year: "numeric" }) : "never";
@@ -43,6 +45,7 @@ function PersonRow({ p, me }: { p: Person; me: boolean }) {
         >
           <option value="viewer">Viewer</option>
           <option value="admin">Admin</option>
+          <option value="production">Production only</option>
         </select>
         {!me && (
           <button
@@ -65,7 +68,7 @@ function InviteRow({ i }: { i: PendingInvite }) {
     <li className={`flex flex-wrap items-center justify-between gap-3 py-2 ${pending ? "opacity-60" : ""}`}>
       <p className="text-sm">
         <span className="font-medium">{i.email}</span>
-        <span className="text-muted"> · {i.role === "admin" ? "Admin" : "Viewer"} · invited {when(i.invitedOn)}, hasn&apos;t signed in yet</span>
+        <span className="text-muted"> · {ROLE_LABEL[i.role] ?? "Viewer"} · invited {when(i.invitedOn)}, hasn&apos;t signed in yet</span>
       </p>
       <button type="button" disabled={pending} onClick={() => run(() => cancelInvite(i.email))} className="text-sm text-ink-2 hover:text-bad">
         Cancel invite
@@ -115,6 +118,7 @@ export function People({ people, invites, meId }: { people: Person[]; invites: P
           <select name="role" defaultValue="viewer" className="h-9 rounded-lg border border-line bg-page px-2 text-sm text-ink">
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
+            <option value="production">Production only</option>
           </select>
         </label>
         <button type="submit" disabled={pending} className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-page disabled:opacity-60">
@@ -123,7 +127,7 @@ export function People({ people, invites, meId }: { people: Person[]; invites: P
       </form>
       {message && <p className={`text-sm ${message.ok ? "text-good" : "text-bad"}`}>{message.text}</p>}
       <p className="text-xs text-muted">
-        Admins can change settings, goals and keywords. Viewers see everything and can add notes and action items and accept ideas. Pulse doesn&apos;t send
+        Admins can change settings, goals and keywords. Viewers see everything and can add notes and action items and accept ideas. Production only sees the print queue and nothing else. Pulse doesn&apos;t send
         emails yet, so let people know yourself.
       </p>
     </div>
