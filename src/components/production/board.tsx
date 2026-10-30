@@ -95,7 +95,7 @@ export function ProductionBoard({ steps, jobs: serverJobs, today }: { steps: Pro
                 {step.name}
                 <span className="text-xs font-normal normal-case">{list.length}</span>
               </h2>
-              {list.length === 0 && !dragId && <p className="px-1 py-4 text-sm text-muted">{step.isDone ? "Nothing finished in the last two weeks." : "Nothing here."}</p>}
+              {list.length === 0 && !dragId && <p className="px-1 py-4 text-sm text-muted">{step.isDone ? `Nothing moved to ${step.name} in the last two weeks.` : "Nothing here."}</p>}
               {list.map((job, i) => {
                 const others = list.filter((j) => j.id !== dragId);
                 return (

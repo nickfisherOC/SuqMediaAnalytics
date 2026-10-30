@@ -14,9 +14,10 @@ export interface ProductionPage {
 
 const PREVIEW_STEPS: ProductionStep[] = [
   { id: "s1", name: "Queued", position: 0, isDone: false },
-  { id: "s2", name: "Prep", position: 1, isDone: false },
+  { id: "s2", name: "Prep/Prime", position: 1, isDone: false },
   { id: "s3", name: "Printing", position: 2, isDone: false },
-  { id: "s4", name: "Done", position: 3, isDone: true },
+  { id: "s4", name: "Done", position: 3, isDone: false },
+  { id: "s5", name: "Shipped", position: 4, isDone: true },
 ];
 
 function previewJobs(today: ISODate): ProductionJob[] {
@@ -36,7 +37,8 @@ function previewJobs(today: ISODate): ProductionJob[] {
     j("p3", "Northside Framing", "s1", 3, null),
     j("p4", "Calgary Concrete Co.", "s2", 1, 1),
     j("p5", "Bow Valley Plumbing", "s3", 1, -1),
-    j("p6", "Red Deer Roofing", "s4", 1, -3),
+    j("p6", "Red Deer Roofing", "s4", 1, 1),
+    j("p7", "Lethbridge Lube & Tire", "s5", 1, -3),
   ];
 }
 
