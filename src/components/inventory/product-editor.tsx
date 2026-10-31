@@ -16,7 +16,7 @@ import {
   type ActionResult,
 } from "@/app/inventory/actions";
 import { STANDARD_SIZES, stockGrid, totalUnits, type InventoryProduct, type StockCell } from "@/lib/inventory";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { Photos } from "./photos";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
 const field = "h-9 w-full rounded-lg border border-line bg-page px-3 text-sm text-ink";
@@ -42,7 +42,7 @@ export function ProductEditor({ product, canUpload }: { product: InventoryProduc
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="flex flex-col gap-6">
-        <Photos product={product} canUpload={canUpload} />
+        <ProductPhotos product={product} canUpload={canUpload} />
         <Stock product={product} />
       </div>
       <div className="flex flex-col gap-6">
@@ -53,87 +53,18 @@ export function ProductEditor({ product, canUpload }: { product: InventoryProduc
   );
 }
 
-// ─── Photos ────────────────────────────────────────────────────────────────
-
-/** Phone photos are huge; shrink to at most 1600 px on the long side as a JPEG. */
-async function shrink(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that photo."))), "image/jpeg", 0.85));
-}
-
-function Photos({ product, canUpload }: { product: InventoryProduct; canUpload: boolean }) {
-  const { pending, message, run } = useAction();
-  const input = useRef<HTMLInputElement>(null);
-
-  const upload = (files: FileList | null) => {
-    if (!files?.length) return;
-    run(async () => {
-      const db = createBrowserSupabase();
-      for (const file of Array.from(files).slice(0, 10)) {
-        if (!file.type.startsWith("image/")) continue;
-        const blob = await shrink(file);
-        const path = `${product.id}/${crypto.randomUUID()}.jpg`;
-        const { error } = await db.storage.from("inventory").upload(path, blob, { contentType: "image/jpeg" });
-        if (error) return { ok: false, message: `Upload failed: ${error.message}` };
-        const r = await addPhoto(product.id, path);
-        if (!r.ok) return r;
-      }
-      if (input.current) input.current.value = "";
-      return { ok: true };
-    });
-  };
-
+function ProductPhotos({ product, canUpload }: { product: InventoryProduct; canUpload: boolean }) {
   return (
-    <section className={card} aria-busy={pending}>
-      <H2>Photos</H2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {product.photos.map((path, i) => (
-          <figure key={path} className="flex flex-col gap-1">
-            <div className="aspect-square overflow-hidden rounded-xl bg-surface-2">
-              {product.photoUrls[i] && (
-                // Signed links to private photos; a plain <img> keeps it simple.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={product.photoUrls[i]} alt={`${product.name}, photo ${i + 1}`} className="h-full w-full object-cover" />
-              )}
-            </div>
-            <figcaption className="flex justify-between gap-2 text-xs">
-              {i === 0 ? (
-                <span className="font-semibold text-ink-2">Cover</span>
-              ) : (
-                <button type="button" disabled={pending} onClick={() => run(() => makeCover(product.id, path))} className="text-ink-2 hover:text-ink">
-                  Make cover
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => confirm("Delete this photo?") && run(() => removePhoto(product.id, path))}
-                className="text-muted hover:text-bad"
-              >
-                Delete
-              </button>
-            </figcaption>
-          </figure>
-        ))}
-        <label
-          className={clsx(
-            "grid aspect-square cursor-pointer place-items-center rounded-xl border-2 border-dashed border-line p-3 text-center text-sm text-ink-2 hover:border-ink-2 hover:text-ink",
-            (!canUpload || pending) && "pointer-events-none opacity-50",
-          )}
-        >
-          {pending ? "Uploading…" : "+ Add photos"}
-          <input ref={input} type="file" accept="image/*" multiple disabled={!canUpload || pending} onChange={(e) => upload(e.target.files)} className="sr-only" />
-        </label>
-      </div>
-      {!canUpload && <p className="mt-2 text-xs text-muted">Photos can be added on the live site.</p>}
-      <Message m={message} />
-    </section>
+    <Photos
+      name={product.name}
+      photos={product.photos}
+      photoUrls={product.photoUrls}
+      folder={product.id}
+      canUpload={canUpload}
+      onAdd={(path) => addPhoto(product.id, path)}
+      onRemove={(path) => removePhoto(product.id, path)}
+      onCover={(path) => makeCover(product.id, path)}
+    />
   );
 }
 
@@ -319,7 +250,7 @@ const DETAILS: { name: string; label: string; key: keyof InventoryProduct; place
 function Details({ product }: { product: InventoryProduct }) {
   const { pending, message, run } = useAction();
   return (
-    <form action={(fd) => run(() => updateProduct(product.id, fd), "Saved.")} className={clsx(card, "flex flex-col gap-3")}>
+    <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); run(() => updateProduct(product.id, fd), "Saved."); }} className={clsx(card, "flex flex-col gap-3")}>
       <H2>Details and specs</H2>
       {DETAILS.map((d) => (
         <label key={d.name} className="flex flex-col gap-1 text-xs text-muted">
