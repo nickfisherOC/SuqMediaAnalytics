@@ -8,12 +8,12 @@ import { getViewer } from "./source";
 
 type Db = Awaited<ReturnType<typeof createUserClient>>;
 
-const SUPPLIER_COLUMNS = "id, name, kind, location, website, contact_name, contact_email, contact_phone, lead_time, shipping_notes, notes, is_sample";
+const SUPPLIER_COLUMNS = "id, name, kind, location, website, contact_name, contact_email, contact_phone, lead_time, shipping_notes, notes, logo, business_card, is_sample";
 const PRODUCT_COLUMNS =
   "id, supplier_id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, branding_methods, imprint_areas, photos, colours, sizes, moq, moq_per, price_breaks, lead_time, sample_cost, last_checked, is_sample";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- rows straight from PostgREST */
-const toSupplier = (r: any): Supplier => ({
+const toSupplier = (r: any, urls: Map<string, string> = new Map()): Supplier => ({
   id: r.id,
   name: r.name,
   kind: r.kind as SupplierKind,
@@ -25,8 +25,15 @@ const toSupplier = (r: any): Supplier => ({
   leadTime: r.lead_time,
   shippingNotes: r.shipping_notes,
   notes: r.notes,
+  logo: r.logo,
+  logoUrl: (r.logo && urls.get(r.logo)) || null,
+  businessCard: r.business_card,
+  businessCardUrl: (r.business_card && urls.get(r.business_card)) || null,
   isSample: r.is_sample,
 });
+
+/** A supplier's logo and business card paths, to sign. */
+const supplierFiles = (r: any): string[] => [r.logo, r.business_card].filter(Boolean);
 
 const toProduct = (r: any, photoUrls: string[]): SupplierProduct => ({
   id: r.id,
@@ -66,8 +73,8 @@ async function signed(db: Db, paths: string[]): Promise<Map<string, string>> {
 const pb = (...pairs: [number, number][]): PriceBreak[] => pairs.map(([minQty, price]) => ({ minQty, price }));
 
 const PREVIEW_SUPPLIERS: Supplier[] = [
-  { id: "sup-print", name: "Example Print Co.", kind: "dropship", location: "Edmonton, AB", website: "https://example.com/print", contactName: "Jordan (sample)", contactEmail: "orders@example.com", contactPhone: null, leadTime: "3–5 business days to print, plus 2–4 days shipping", shippingNotes: "Ships blind to the customer anywhere in Canada.", notes: "Print on demand: no stock to hold.", isSample: true },
-  { id: "sup-factory", name: "Example Garment Factory", kind: "manufacturer", location: "Overseas", website: null, contactName: "Lee (sample)", contactEmail: "factory@example.com", contactPhone: null, leadTime: "30–40 days to make, plus 10–14 days sea freight", shippingNotes: null, notes: "Custom cut-and-sew with our own labels.", isSample: true },
+  { id: "sup-print", name: "Example Print Co.", kind: "dropship", location: "Edmonton, AB", website: "https://example.com/print", contactName: "Jordan (sample)", contactEmail: "orders@example.com", contactPhone: null, leadTime: "3–5 business days to print, plus 2–4 days shipping", shippingNotes: "Ships blind to the customer anywhere in Canada.", notes: "Print on demand: no stock to hold.", logo: null, logoUrl: null, businessCard: null, businessCardUrl: null, isSample: true },
+  { id: "sup-factory", name: "Example Garment Factory", kind: "manufacturer", location: "Overseas", website: null, contactName: "Lee (sample)", contactEmail: "factory@example.com", contactPhone: null, leadTime: "30–40 days to make, plus 10–14 days sea freight", shippingNotes: null, notes: "Custom cut-and-sew with our own labels.", logo: null, logoUrl: null, businessCard: null, businessCardUrl: null, isSample: true },
 ];
 
 const base = { brand: "Example", styleNumber: null, description: null, customFields: [], printNotes: null, brandingMethods: ["Embroidery"], imprintAreas: [{ location: "Left chest", maxSize: "4 × 4 in", method: "" }], photos: [], photoUrls: [], leadTime: null, sampleCost: null, isSample: true };
@@ -97,9 +104,9 @@ export async function listSuppliers(): Promise<{ mode: "preview" | "live"; today
   ]);
   if (sErr) throw sErr;
   if (pErr) throw pErr;
-  const urls = await signed(db, prods.flatMap((p) => (p.photos as string[]).slice(0, 1)));
+  const urls = await signed(db, [...prods.flatMap((p) => (p.photos as string[]).slice(0, 1)), ...sups.flatMap((s) => (s.logo ? [s.logo] : []))]);
   const products = prods.map((p) => toProduct(p, (p.photos as string[]).slice(0, 1).map((x) => urls.get(x) ?? "")));
-  return { mode, today, suppliers: sups.map((s) => ({ supplier: toSupplier(s), products: products.filter((p) => p.supplierId === s.id) })) };
+  return { mode, today, suppliers: sups.map((s) => ({ supplier: toSupplier(s, urls), products: products.filter((p) => p.supplierId === s.id) })) };
 }
 
 /** One supplier with its products (cover photos), or null. */
@@ -115,11 +122,11 @@ export async function getSupplier(id: string): Promise<{ mode: "preview" | "live
   if (!s) return { mode, today, found: null };
   const { data: prods, error: pErr } = await db.from("supplier_products").select(PRODUCT_COLUMNS).eq("supplier_id", id).is("archived_at", null).order("name");
   if (pErr) throw pErr;
-  const urls = await signed(db, prods.flatMap((p) => (p.photos as string[]).slice(0, 1)));
+  const urls = await signed(db, [...prods.flatMap((p) => (p.photos as string[]).slice(0, 1)), ...supplierFiles(s)]);
   return {
     mode,
     today,
-    found: { supplier: toSupplier(s), products: prods.map((p) => toProduct(p, (p.photos as string[]).slice(0, 1).map((x) => urls.get(x) ?? ""))) },
+    found: { supplier: toSupplier(s, urls), products: prods.map((p) => toProduct(p, (p.photos as string[]).slice(0, 1).map((x) => urls.get(x) ?? ""))) },
   };
 }
 

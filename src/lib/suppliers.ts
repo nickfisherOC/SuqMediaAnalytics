@@ -37,6 +37,11 @@ export interface Supplier {
   leadTime: string | null;
   shippingNotes: string | null;
   notes: string | null;
+  /** Storage paths of the logo and business card images, and short-lived links to show them. */
+  logo: string | null;
+  logoUrl: string | null;
+  businessCard: string | null;
+  businessCardUrl: string | null;
   isSample: boolean;
 }
 

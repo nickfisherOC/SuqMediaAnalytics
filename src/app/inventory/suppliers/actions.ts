@@ -207,3 +207,23 @@ export async function makeSupplierCover(id: string, path: string): Promise<Actio
     return db.from("supplier_products").update({ photos: [path, ...photos.filter((p) => p !== path)] }).eq("id", id);
   });
 }
+
+// ─── Logo and business card (uploaded by the browser to supplier-files/<supplier id>/…) ───
+
+const FILE_COLUMN = { logo: "logo", card: "business_card" } as const;
+
+/** Sets or clears (path null) a supplier's logo or business card, deleting the old image. */
+export async function setSupplierFile(id: string, slot: "logo" | "card", path: string | null): Promise<ActionResult> {
+  const column = FILE_COLUMN[slot];
+  if (!column) return { ok: false, message: "That isn't something a supplier has." };
+  const folder = `supplier-files/${id}/`;
+  if (path !== null && !path.startsWith(folder)) return { ok: false, message: "That image doesn't belong to this supplier." };
+  return run(async (db) => {
+    const { data: prev, error: readErr } = await db.from("suppliers").select(column).eq("id", id).single();
+    if (readErr) return { error: readErr };
+    const old = (prev as Record<string, string | null>)[column];
+    const res = await db.from("suppliers").update({ [column]: path, updated_at: now() }).eq("id", id);
+    if (!res.error && old && old !== path && old.startsWith(folder)) await db.storage.from(PHOTO_BUCKET).remove([old]);
+    return res;
+  });
+}

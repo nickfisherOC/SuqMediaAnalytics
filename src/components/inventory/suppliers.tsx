@@ -40,6 +40,7 @@ import { NoPhoto } from "./drawings";
 import { SampleBadge, SampleNotice } from "./samples";
 import { FilterBar } from "./filter-bar";
 import { Photos } from "./photos";
+import { SupplierFiles } from "./supplier-files";
 import { BrandingEditor, BrandingSummary } from "./branding";
 import { SpecsEditor, SpecsSummary, TypeSelect, cardSpecs } from "./specs-editor";
 
@@ -161,6 +162,10 @@ export function SupplierDirectory({
           <section key={supplier.id} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                {supplier.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={supplier.logoUrl} alt="" className="size-8 self-center rounded-md bg-surface-2 object-contain p-0.5" />
+                )}
                 <h2 className="text-2xl font-bold tracking-tight">
                   <Link href={`/inventory/suppliers/${supplier.id}`} className="hover:underline">
                     {supplier.name}
@@ -293,7 +298,19 @@ const SUPPLIER_FIELDS: { name: string; label: string; key: keyof Supplier; place
   { name: "notes", label: "Notes", key: "notes", long: true },
 ];
 
-export function SupplierEditor({ supplier, products, types, today }: { supplier: Supplier; products: SupplierProduct[]; types: ProductType[]; today: ISODate }) {
+export function SupplierEditor({
+  supplier,
+  products,
+  types,
+  today,
+  canUpload,
+}: {
+  supplier: Supplier;
+  products: SupplierProduct[];
+  types: ProductType[];
+  today: ISODate;
+  canUpload: boolean;
+}) {
   const details = useAction();
   const archive = useAction();
   return (
@@ -305,6 +322,8 @@ export function SupplierEditor({ supplier, products, types, today }: { supplier:
         </div>
         <ProductGrid supplierId={supplier.id} products={products} types={types} today={today} />
       </section>
+
+      <SupplierFiles supplier={supplier} canUpload={canUpload} />
 
       <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); details.run(() => updateSupplier(supplier.id, fd), "Saved."); }} className={clsx(card, "flex max-w-2xl flex-col gap-3")}>
         <H2>Supplier details</H2>

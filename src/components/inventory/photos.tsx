@@ -11,8 +11,11 @@ interface Result {
   message?: string;
 }
 
-/** Phone photos are huge; shrink to at most 1600 px on the long side as a JPEG. */
-async function shrink(file: File): Promise<Blob> {
+/**
+ * Phone photos are huge; shrink to at most 1600 px on the long side as a JPEG
+ * (or a PNG, which keeps a logo's see-through background).
+ */
+export async function shrink(file: File, type: "image/jpeg" | "image/png" = "image/jpeg"): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -20,7 +23,7 @@ async function shrink(file: File): Promise<Blob> {
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that photo."))), "image/jpeg", 0.85));
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that photo."))), type, 0.85));
 }
 
 /**
