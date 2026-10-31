@@ -28,13 +28,16 @@ import {
   fromPrice,
   moqLabel,
   money,
+  priceFor,
   type PriceBreak,
   type Supplier,
   type SupplierKind,
   type SupplierProduct,
 } from "@/lib/suppliers";
 import type { ProductType } from "@/lib/product-types";
+import { NO_FILTERS, activeCount, matches, type Filters } from "@/lib/filters";
 import { NoPhoto } from "./drawings";
+import { FilterBar } from "./filter-bar";
 import { Photos } from "./photos";
 import { BrandingEditor, BrandingSummary } from "./branding";
 import { SpecsEditor, SpecsSummary, TypeSelect, cardSpecs } from "./specs-editor";
@@ -75,6 +78,13 @@ export function SampleBadge() {
   );
 }
 
+/** Price each for an order of `qty`, or the cheapest price when no quantity is given. */
+const unitPrice = (breaks: PriceBreak[], qty: number | null) => {
+  if (qty !== null) return priceFor(qty, breaks);
+  const clean = cleanBreaks(breaks);
+  return clean.length ? Math.min(...clean.map((b) => b.price)) : null;
+};
+
 const sizeRange = (sizes: string[]) => (sizes.length > 2 ? `${sizes[0]}–${sizes[sizes.length - 1]}` : sizes.join(", "));
 
 // ─── Directory ────────────────────────────────────────────────────────────
@@ -92,15 +102,19 @@ export function SupplierDirectory({
   isAdmin: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const filtering = activeCount(filters) > 0;
   const typeName = (id: string | null) => types.find((t) => t.id === id)?.name;
   const q = query.trim().toLowerCase();
   const hit = (v: string | null | undefined) => Boolean(v?.toLowerCase().includes(q));
-  const shown = suppliers
+  const pass = (p: SupplierProduct) => matches({ ...p, priceAt: (qty) => unitPrice(p.priceBreaks, qty) }, filters, types);
+  const filtered = suppliers.map(({ supplier, products }) => ({ supplier, products: products.filter(pass) }));
+  const shown = filtered
     .map(({ supplier, products }) => ({
       supplier,
       products: !q || hit(supplier.name) || hit(KIND_LABEL[supplier.kind]) ? products : products.filter((p) => [p.name, p.brand, p.styleNumber, typeName(p.typeId), ...p.colours, ...Object.values(p.specs).map(String), ...p.brandingMethods].some(hit)),
     }))
-    .filter(({ supplier, products }) => !q || products.length > 0 || hit(supplier.name));
+    .filter(({ supplier, products }) => products.length > 0 || (!filtering && (!q || hit(supplier.name))));
   const hasSample = suppliers.some((s) => s.supplier.isSample || s.products.some((p) => p.isSample));
   const count = suppliers.reduce((n, s) => n + s.products.length, 0);
 
@@ -115,6 +129,18 @@ export function SupplierDirectory({
       </div>
 
       {hasSample && <SampleNotice isAdmin={isAdmin} />}
+
+      {count > 0 && (
+        <FilterBar
+          types={types}
+          methodsInUse={suppliers.flatMap((s) => s.products.flatMap((p) => p.brandingMethods))}
+          filters={filters}
+          onChange={setFilters}
+          kind="suppliers"
+          shown={filtered.reduce((n, s) => n + s.products.length, 0)}
+          total={count}
+        />
+      )}
 
       {suppliers.length > 0 && (
         <input
@@ -132,7 +158,7 @@ export function SupplierDirectory({
           No suppliers yet. Add your dropshipper, blank supplier or manufacturer above, then add what you can order from them.
         </p>
       ) : shown.length === 0 ? (
-        <p className="text-ink-2">Nothing matches &ldquo;{query}&rdquo;.</p>
+        <p className="text-ink-2">{q ? <>Nothing matches &ldquo;{query}&rdquo;{filtering && " with these filters"}.</> : "Nothing matches these filters."}</p>
       ) : (
         shown.map(({ supplier, products }) => (
           <section key={supplier.id} className="flex flex-col gap-3">
@@ -151,7 +177,7 @@ export function SupplierDirectory({
               </Link>
             </div>
             {supplier.leadTime && <p className="-mt-2 text-sm text-ink-2">Lead time: {supplier.leadTime}</p>}
-            <ProductGrid supplierId={supplier.id} products={products} types={types} today={today} />
+            <ProductGrid supplierId={supplier.id} products={products} types={types} today={today} qty={filters.qty} />
           </section>
         ))
       )}
@@ -215,13 +241,27 @@ function KindSelect({ value }: { value?: SupplierKind }) {
   );
 }
 
-function ProductGrid({ supplierId, products, types, today }: { supplierId: string; products: SupplierProduct[]; types: ProductType[]; today: ISODate }) {
+function ProductGrid({
+  supplierId,
+  products,
+  types,
+  today,
+  qty = null,
+}: {
+  supplierId: string;
+  products: SupplierProduct[];
+  types: ProductType[];
+  today: ISODate;
+  /** When set, cards show the price at this order quantity. */
+  qty?: number | null;
+}) {
   if (!products.length) return <p className="text-sm text-ink-2">No products from this supplier yet.</p>;
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {products.map((p) => {
         const checked = checkedLabel(p.lastChecked, today);
-        const price = fromPrice(p.priceBreaks);
+        const atQty = qty !== null ? unitPrice(p.priceBreaks, qty) : null;
+        const price = atQty !== null ? `${money(atQty)} each at ${qty}` : fromPrice(p.priceBreaks);
         const type = types.find((t) => t.id === p.typeId) ?? null;
         return (
           <li key={p.id}>

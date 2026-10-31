@@ -6,19 +6,25 @@ import { createProduct } from "@/app/inventory/actions";
 import { methodsLabel } from "@/lib/branding";
 import { lowCells, totalUnits, type InventoryProduct } from "@/lib/inventory";
 import type { ProductType } from "@/lib/product-types";
+import { NO_FILTERS, matches, type Filters } from "@/lib/filters";
 import { NoPhoto } from "./drawings";
+import { FilterBar } from "./filter-bar";
 import { TypeSelect, cardSpecs } from "./specs-editor";
 
 /** Every product on the shelves as cards, with a search box and an Add button. */
 export function ProductList({ products, types }: { products: InventoryProduct[]; types: ProductType[] }) {
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const typeOf = (id: string | null) => types.find((t) => t.id === id) ?? null;
   const q = query.trim().toLowerCase();
+  const filtered = products.filter((p) =>
+    matches({ ...p, priceAt: () => p.cost, units: totalUnits(p.stock), isLow: lowCells(p.stock, p.lowStockAt).length > 0 }, filters, types),
+  );
   const shown = q
-    ? products.filter((p) =>
+    ? filtered.filter((p) =>
         [p.name, p.brand, p.styleNumber, typeOf(p.typeId)?.name, p.location, ...p.stock.map((s) => s.colour), ...Object.values(p.specs).map(String), ...p.brandingMethods].some((v) => v?.toLowerCase().includes(q)),
       )
-    : products;
+    : filtered;
   const units = products.reduce((n, p) => n + totalUnits(p.stock), 0);
   const running = products.filter((p) => lowCells(p.stock, p.lowStockAt).length > 0).length;
 
@@ -38,6 +44,18 @@ export function ProductList({ products, types }: { products: InventoryProduct[];
       </div>
 
       {products.length > 0 && (
+        <FilterBar
+          types={types}
+          methodsInUse={products.flatMap((p) => p.brandingMethods)}
+          filters={filters}
+          onChange={setFilters}
+          kind="calgary"
+          shown={filtered.length}
+          total={products.length}
+        />
+      )}
+
+      {products.length > 0 && (
         <input
           type="search"
           value={query}
@@ -53,7 +71,7 @@ export function ProductList({ products, types }: { products: InventoryProduct[];
           Nothing on the shelves yet. Add your first product above: give it a name, then add photos, specs and counts.
         </p>
       ) : shown.length === 0 ? (
-        <p className="text-ink-2">Nothing matches &ldquo;{query}&rdquo;.</p>
+        <p className="text-ink-2">{q ? <>Nothing matches &ldquo;{query}&rdquo;{filtered.length < products.length && " with these filters"}.</> : "Nothing matches these filters."}</p>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {shown.map((p) => (
