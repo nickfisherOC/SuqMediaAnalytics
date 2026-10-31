@@ -8,7 +8,7 @@ import { getViewer } from "./source";
 export const PHOTO_BUCKET = "inventory";
 
 const COLUMNS =
-  "id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, branding_methods, imprint_areas, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
+  "id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, branding_methods, imprint_areas, is_sample, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
 
 interface Row {
   id: string;
@@ -27,6 +27,7 @@ interface Row {
   low_stock_at: number;
   photos: string[];
   inventory_stock: StockCell[];
+  is_sample: boolean;
 }
 
 const toProduct = (r: Row, photoUrls: string[]): InventoryProduct => ({
@@ -47,6 +48,7 @@ const toProduct = (r: Row, photoUrls: string[]): InventoryProduct => ({
   photos: r.photos,
   photoUrls,
   stock: r.inventory_stock,
+  isSample: r.is_sample,
 });
 
 const PREVIEW: InventoryProduct[] = [
@@ -70,6 +72,7 @@ const PREVIEW: InventoryProduct[] = [
     lowStockAt: 3,
     photos: [],
     photoUrls: [],
+    isSample: true,
     stock: ["S", "M", "L", "XL", "2XL"].flatMap((size, i) => [
       { id: `b-${size}`, colour: "Black", size, quantity: [2, 9, 14, 8, 3][i] },
       { id: `g-${size}`, colour: "Sport Grey", size, quantity: [0, 4, 6, 5, 1][i] },
@@ -92,6 +95,7 @@ const PREVIEW: InventoryProduct[] = [
     lowStockAt: 0,
     photos: [],
     photoUrls: [],
+    isSample: true,
     stock: ["S", "M", "L", "XL"].map((size, i) => ({ id: `w-${size}`, colour: "White", size, quantity: [6, 12, 12, 7][i] })),
   },
 ];

@@ -53,6 +53,22 @@ export async function removeJob(id: string): Promise<ActionResult> {
   return update(id, { removed_at: new Date().toISOString() });
 }
 
+/** How many business days store orders get. Admins only; applies to new orders. */
+export async function setShopifyDueDays(days: number): Promise<ActionResult> {
+  try {
+    const ctx = await live();
+    if (ctx.viewer.role !== "admin") return { ok: false, message: "Only admins can change this." };
+    if (!Number.isInteger(days) || days < 0 || days > 60) return { ok: false, message: "Use a whole number of days from 0 to 60." };
+    const db = await createUserClient();
+    const { error } = await db.from("production_settings").update({ shopify_due_days: days, updated_at: new Date().toISOString() }).eq("id", true);
+    if (error) return { ok: false, message: error.message };
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /** A job that isn't a Lead Rescue deal, e.g. merch. Goes to the bottom of the first step. */
 export async function addJob(formData: FormData): Promise<ActionResult> {
   try {

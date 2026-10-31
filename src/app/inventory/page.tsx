@@ -5,11 +5,12 @@ import { InventoryTabs } from "@/components/inventory/tabs";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { listInventory } from "@/lib/data/inventory";
 import { listProductTypes } from "@/lib/data/product-types";
+import { getViewer } from "@/lib/data/source";
 
 export const metadata: Metadata = { title: "Inventory" };
 
 async function Inventory() {
-  const [{ products }, types] = await Promise.all([listInventory(), listProductTypes()]);
+  const [{ products }, types, { viewer }] = await Promise.all([listInventory(), listProductTypes(), getViewer()]);
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
@@ -17,7 +18,7 @@ async function Inventory() {
         <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">What&apos;s on the shelves</h1>
       </header>
       <InventoryTabs />
-      <ProductList products={products} types={types} />
+      <ProductList products={products} types={types} isAdmin={viewer.role === "admin"} />
     </div>
   );
 }

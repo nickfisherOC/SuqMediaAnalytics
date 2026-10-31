@@ -144,6 +144,17 @@ export async function removeColour(productId: string, colour: string): Promise<A
   return run((db) => db.from("inventory_stock").delete().eq("product_id", productId).eq("colour", colour));
 }
 
+/** Deletes the made-up example products and their counts. Admins only. */
+export async function removeSampleStock(): Promise<ActionResult> {
+  try {
+    const { ctx } = await live();
+    if (ctx.viewer.role !== "admin") return { ok: false, message: "Only admins can remove the sample products." };
+  } catch (e) {
+    return fail(e);
+  }
+  return run((db) => db.from("inventory_products").delete().eq("is_sample", true));
+}
+
 /** Remove one colour/size from the grid. */
 export async function removeStockCell(stockId: string): Promise<ActionResult> {
   return run((db) => db.from("inventory_stock").delete().eq("id", stockId));

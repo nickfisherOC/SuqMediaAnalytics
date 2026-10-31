@@ -34,6 +34,8 @@ export interface InventoryProduct {
   /** Signed links for `photos`, same order. */
   photoUrls: string[];
   stock: StockCell[];
+  /** Made-up example, badged in the app. */
+  isSample: boolean;
 }
 
 /** The usual apparel sizes, smallest first. Anything else sorts after these. */

@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { createProduct } from "@/app/inventory/actions";
+import { createProduct, removeSampleStock } from "@/app/inventory/actions";
 import { methodsLabel } from "@/lib/branding";
 import { lowCells, totalUnits, type InventoryProduct } from "@/lib/inventory";
 import type { ProductType } from "@/lib/product-types";
 import { NO_FILTERS, matches, type Filters } from "@/lib/filters";
 import { NoPhoto } from "./drawings";
 import { FilterBar } from "./filter-bar";
+import { SampleBadge, SampleNotice } from "./samples";
 import { TypeSelect, cardSpecs } from "./specs-editor";
 
 /** Every product on the shelves as cards, with a search box and an Add button. */
-export function ProductList({ products, types }: { products: InventoryProduct[]; types: ProductType[] }) {
+export function ProductList({ products, types, isAdmin }: { products: InventoryProduct[]; types: ProductType[]; isAdmin: boolean }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const typeOf = (id: string | null) => types.find((t) => t.id === id) ?? null;
@@ -42,6 +43,16 @@ export function ProductList({ products, types }: { products: InventoryProduct[];
         </p>
         <AddProduct types={types} />
       </div>
+
+      {products.some((p) => p.isSample) && (
+        <SampleNotice
+          isAdmin={isAdmin}
+          what="Products"
+          next="Add what's really on your shelves"
+          confirmText="Delete all the sample products and their counts?"
+          onRemove={() => removeSampleStock()}
+        />
+      )}
 
       {products.length > 0 && (
         <FilterBar
@@ -100,7 +111,10 @@ function ProductCard({ product: p, type }: { product: InventoryProduct; type: Pr
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">
-        <h2 className="leading-snug font-semibold">{p.name}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="leading-snug font-semibold">{p.name}</h2>
+          {p.isSample && <SampleBadge />}
+        </div>
         <p className="text-sm text-ink-2">{[p.brand, p.styleNumber].filter(Boolean).join(" · ") || "No brand or style yet"}</p>
         <p className="text-sm text-ink-2">{cardSpecs(type, p.specs) || "No type yet"}</p>
         {methodsLabel(p.brandingMethods) && <p className="text-sm text-ink-2">Branding: {methodsLabel(p.brandingMethods)}</p>}

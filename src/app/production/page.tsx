@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { ProductionBoard } from "@/components/production/board";
+import { DueDaysSetting } from "@/components/production/due-days";
 import { loadProduction } from "@/lib/data/production";
 
 export const metadata: Metadata = { title: "Production" };
 
 async function Production() {
-  const { steps, jobs, today } = await loadProduction();
+  const { steps, jobs, today, viewer, mode, shopifyDueDays } = await loadProduction();
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
@@ -15,6 +16,7 @@ async function Production() {
         <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">What&apos;s on the go</h1>
       </header>
       <ProductionBoard steps={steps} jobs={jobs} today={today} />
+      {mode === "live" && viewer.role === "admin" && <DueDaysSetting days={shopifyDueDays} />}
     </div>
   );
 }

@@ -17,7 +17,12 @@ export interface ProductionJob {
   rush: boolean;
   stepId: string;
   sortOrder: number;
-  fromDeal: boolean;
+  /** Where the job came from: a won Lead Rescue deal, a Shopify order, or added by hand. */
+  source: "lead_rescue" | "shopify" | "manual";
+  /** What to print, for store orders: "2× Black hoodie - M, …". */
+  items: string | null;
+  /** The brand it's for, e.g. "PeopleSuq". */
+  brandName: string | null;
 }
 
 /** Done jobs stay on the board this many days after reaching the last step. */

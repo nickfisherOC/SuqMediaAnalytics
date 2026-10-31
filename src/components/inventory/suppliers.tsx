@@ -37,6 +37,7 @@ import {
 import type { ProductType } from "@/lib/product-types";
 import { NO_FILTERS, activeCount, matches, type Filters } from "@/lib/filters";
 import { NoPhoto } from "./drawings";
+import { SampleBadge, SampleNotice } from "./samples";
 import { FilterBar } from "./filter-bar";
 import { Photos } from "./photos";
 import { BrandingEditor, BrandingSummary } from "./branding";
@@ -65,18 +66,6 @@ const Message = ({ m }: { m: { ok: boolean; text: string } | null }) =>
       {m.text}
     </p>
   );
-
-export function SampleBadge() {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--status-warning)] px-2 py-0.5 text-xs font-semibold text-ink"
-      title="Made-up example data, to show how this works. Replace it with your real suppliers."
-    >
-      <span aria-hidden className="size-1.5 rounded-full bg-[color:var(--status-warning)]" />
-      Sample
-    </span>
-  );
-}
 
 /** Price each for an order of `qty`, or the cheapest price when no quantity is given. */
 const unitPrice = (breaks: PriceBreak[], qty: number | null) => {
@@ -128,7 +117,15 @@ export function SupplierDirectory({
         <AddSupplier />
       </div>
 
-      {hasSample && <SampleNotice isAdmin={isAdmin} />}
+      {hasSample && (
+        <SampleNotice
+          isAdmin={isAdmin}
+          what="Suppliers"
+          next="Add your real suppliers"
+          confirmText="Delete all the sample suppliers and their products?"
+          onRemove={() => removeSampleSuppliers()}
+        />
+      )}
 
       {count > 0 && (
         <FilterBar
@@ -181,28 +178,6 @@ export function SupplierDirectory({
           </section>
         ))
       )}
-    </div>
-  );
-}
-
-function SampleNotice({ isAdmin }: { isAdmin: boolean }) {
-  const { pending, message, run } = useAction();
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--status-warning)] p-4">
-      <p className="text-sm text-ink">
-        <span className="font-semibold">Suppliers marked Sample are made up</span>, to show how this works. Add your real suppliers, then remove the samples.
-      </p>
-      {isAdmin && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => confirm("Delete all the sample suppliers and their products?") && run(() => removeSampleSuppliers())}
-          className="h-9 rounded-lg border border-line px-3 text-sm font-medium text-ink-2 hover:text-bad"
-        >
-          {pending ? "Removing…" : "Remove samples"}
-        </button>
-      )}
-      <Message m={message} />
     </div>
   );
 }

@@ -9,7 +9,9 @@ const job = (id: string, over: Partial<ProductionJob> = {}): ProductionJob => ({
   rush: false,
   stepId: "queued",
   sortOrder: 0,
-  fromDeal: false,
+  source: "manual",
+  items: null,
+  brandName: null,
   ...over,
 });
 

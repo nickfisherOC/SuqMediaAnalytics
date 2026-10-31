@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ProductEditor } from "@/components/inventory/product-editor";
+import { SampleBadge } from "@/components/inventory/samples";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { getInventoryProduct } from "@/lib/data/inventory";
 import { listProductTypes } from "@/lib/data/product-types";
@@ -20,7 +21,10 @@ async function Product({ params }: { params: PageProps<"/inventory/[id]">["param
       {product ? (
         <>
           <header className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-muted">{[type?.name, product.brand, product.styleNumber].filter(Boolean).join(" · ") || "Inventory · in Calgary"}</p>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted">
+              {[type?.name, product.brand, product.styleNumber].filter(Boolean).join(" · ") || "Inventory · in Calgary"}
+              {product.isSample && <SampleBadge />}
+            </p>
             <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{product.name}</h1>
           </header>
           <ProductEditor key={product.id} product={product} types={types} canUpload={mode === "live"} />

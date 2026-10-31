@@ -16,6 +16,8 @@ const EDGE: Record<ReturnType<typeof dueState>, string> = {
   none: "border-l-line",
 };
 
+const OPEN_LABEL: Record<ProductionJob["source"], string> = { lead_rescue: "Open in Lead Rescue", shopify: "Open in Shopify", manual: "Open link" };
+
 const iconButton = "grid size-8 place-items-center rounded-md bg-surface-2 text-sm text-ink-2 hover:text-ink disabled:opacity-30";
 
 /** The print queue: one column per step; drag cards (or use the arrows) to move them. */
@@ -130,7 +132,7 @@ export function ProductionBoard({ steps, jobs: serverJobs, today }: { steps: Pro
         })}
       </div>
       <p className="text-xs text-muted">
-        Won deals in Lead Rescue are added to the first step overnight. Drag a card to move it, or use the arrows. 🔥 Rush jobs always sit at the top.
+        Won deals in Lead Rescue are added to the first step overnight; paid Shopify orders as soon as they come in, and they move to the last step when shipped in Shopify. Drag a card to move it, or use the arrows. 🔥 Rush jobs always sit at the top.
       </p>
     </div>
   );
@@ -176,6 +178,7 @@ function JobCard({ job, today, done, dragging, onDragStart, onDragEnd, onUp, onD
         dragging && "opacity-40",
       )}
     >
+      {job.brandName && <p className="text-xs font-semibold tracking-wide text-muted uppercase">{job.brandName}</p>}
       <div className="flex items-start justify-between gap-2">
         <h3 className={clsx("leading-snug font-semibold", done && "text-ink-2")}>{job.title}</h3>
         <button
@@ -188,6 +191,7 @@ function JobCard({ job, today, done, dragging, onDragStart, onDragEnd, onUp, onD
           🔥 Rush
         </button>
       </div>
+      {job.items && <p className="text-sm text-ink-2">{job.items}</p>}
 
       <label className="flex flex-wrap items-center gap-2 text-sm">
         <span className={clsx("font-medium", state === "overdue" ? "text-bad" : state === "today" || state === "soon" ? "text-ink" : "text-ink-2")}>
@@ -210,10 +214,10 @@ function JobCard({ job, today, done, dragging, onDragStart, onDragEnd, onUp, onD
             rel="noreferrer"
             className="mr-auto rounded-md bg-ink px-2.5 py-1.5 text-xs font-semibold text-page hover:opacity-90"
           >
-            Open in Lead Rescue ↗
+            {OPEN_LABEL[job.source]} ↗
           </a>
         ) : (
-          <span className="mr-auto text-xs text-muted">{job.fromDeal ? "No Lead Rescue link" : "Added by hand"}</span>
+          <span className="mr-auto text-xs text-muted">{job.source === "manual" ? "Added by hand" : "No link"}</span>
         )}
         <button type="button" className={iconButton} disabled={!onBack} onClick={onBack} aria-label={backName ? `Move back to ${backName}` : "Move back"} title={backName ? `Back to ${backName}` : undefined}>
           ◀

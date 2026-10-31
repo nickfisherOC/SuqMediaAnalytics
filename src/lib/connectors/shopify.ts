@@ -1,4 +1,5 @@
-import { eachDay, edmontonDateOf, startOfWeek, type ISODate } from "@/lib/dates";
+import { addDays, eachDay, edmontonDateOf, startOfWeek, todayInEdmonton, type ISODate } from "@/lib/dates";
+import { itemsSummary, orderAdminUrl, orderDueDate, orderState, orderTitle, type ShopifyOrder } from "@/lib/production-orders";
 import { fetchJson } from "./http";
 import { ConnectorConfigError, type Connector, type MetricPoint, type SyncContext } from "./types";
 
@@ -211,5 +212,151 @@ export const shopify: Connector = async (ctx) => {
     for (const m of ["store_sessions", "store_sessions_social", "add_to_cart", "reached_checkout", "orders", "store_revenue"])
       if (!summed.has(`${d}|${m}`)) summed.set(`${d}|${m}`, { date: d, metric: m, value: 0 });
 
-  return { metrics: [...summed.values()], extraRows: cityRows.size };
+  // The print queue: open store orders become jobs. Never fails the metrics.
+  let queued = 0;
+  try {
+    queued = await syncOrdersToQueue(ctx, s, token);
+    await ensureOrderWebhooks(ctx, s, token);
+  } catch (e) {
+    console.error("Shopify print queue:", e);
+  }
+
+  return { metrics: [...summed.values()], extraRows: cityRows.size + queued };
 };
+
+// ─── Print queue ────────────────────────────────────────────────────────────
+
+/** Orders Shopify lets us read without extra permission: the last 60 days. */
+const ORDER_WINDOW_DAYS = 60;
+
+/**
+ * Open (paid, not shipped) orders become jobs in the queue's first step, due
+ * a set number of business days after ordering. Jobs whose order has since
+ * shipped move to the last step; cancelled orders' jobs come off the board.
+ * Returns the number of jobs added or changed.
+ */
+async function syncOrdersToQueue(ctx: SyncContext, s: Settings, token: string): Promise<number> {
+  const since = addDays(todayInEdmonton(), -ORDER_WINDOW_DAYS);
+  const orders: ShopifyOrder[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 20; page++) {
+    const data: { orders: { nodes: ShopifyOrder[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } = await gql(
+      ctx,
+      s,
+      token,
+      `query($q: String!, $after: String) {
+        orders(first: 100, after: $after, query: $q) {
+          nodes { id legacyResourceId name createdAt test cancelledAt displayFinancialStatus displayFulfillmentStatus
+                  lineItems(first: 50) { nodes { name quantity } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }`,
+      { q: `created_at:>=${since}`, after: cursor },
+    );
+    orders.push(...data.orders.nodes);
+    if (!data.orders.pageInfo.hasNextPage) break;
+    cursor = data.orders.pageInfo.endCursor;
+  }
+
+  const { data: existing, error: exErr } = await ctx.db
+    .from("production_jobs")
+    .select("id, shopify_order_id, step_id, removed_at")
+    .not("shopify_order_id", "is", null);
+  if (exErr) throw exErr;
+  const jobByOrder = new Map(existing.map((j) => [j.shopify_order_id as string, j]));
+  const { data: steps, error: stErr } = await ctx.db.from("production_steps").select("id, position, is_done").order("position");
+  if (stErr) throw stErr;
+  if (!steps.length) return 0;
+  const first = steps[0].id;
+  const doneStep = steps.find((st) => st.is_done)?.id ?? steps[steps.length - 1].id;
+  const { data: settings } = await ctx.db.from("production_settings").select("shopify_due_days").maybeSingle();
+  const dueDays = settings?.shopify_due_days ?? 3;
+
+  const fresh = orders.filter((o) => orderState(o) === "open" && !jobByOrder.has(o.id));
+  // Names are protected customer data: only there if the app has been allowed them.
+  const names = await customerNames(ctx, s, token, fresh.map((o) => o.id));
+  const now = new Date().toISOString();
+  let changed = 0;
+
+  if (fresh.length) {
+    const { error } = await ctx.db.from("production_jobs").upsert(
+      fresh.map((o) => ({
+        brand_id: ctx.account.brandId,
+        source: "shopify",
+        shopify_order_id: o.id,
+        title: orderTitle({ name: o.name, customer: names.get(o.id) }),
+        items: itemsSummary(o.lineItems.nodes) || null,
+        url: orderAdminUrl(s.store!, o.legacyResourceId),
+        due_date: orderDueDate(o, dueDays),
+        step_id: first,
+      })),
+      { onConflict: "shopify_order_id", ignoreDuplicates: true },
+    );
+    if (error) throw error;
+    changed += fresh.length;
+  }
+
+  for (const o of orders) {
+    const job = jobByOrder.get(o.id);
+    if (!job || job.removed_at) continue;
+    const state = orderState(o);
+    if (state === "shipped" && job.step_id !== doneStep) {
+      const { error } = await ctx.db.from("production_jobs").update({ step_id: doneStep, step_changed_at: now, updated_at: now }).eq("id", job.id);
+      if (error) throw error;
+      changed++;
+    } else if (state === "cancelled") {
+      const { error } = await ctx.db.from("production_jobs").update({ removed_at: now, updated_at: now }).eq("id", job.id);
+      if (error) throw error;
+      changed++;
+    }
+  }
+  return changed;
+}
+
+/** Customer first and last names for orders, or nothing if Shopify hasn't allowed the app to see them. */
+async function customerNames(ctx: SyncContext, s: Settings, token: string, ids: string[]): Promise<Map<string, ShopifyOrder["customer"]>> {
+  if (!ids.length) return new Map();
+  try {
+    const data = await gql<{ nodes: ({ id: string; customer: ShopifyOrder["customer"] } | null)[] }>(
+      ctx,
+      s,
+      token,
+      `query($ids: [ID!]!) { nodes(ids: $ids) { ... on Order { id customer { firstName lastName } } } }`,
+      { ids },
+    );
+    return new Map(data.nodes.flatMap((n) => (n ? [[n.id, n.customer] as const] : [])));
+  } catch {
+    return new Map();
+  }
+}
+
+/** The order changes Shopify tells Pulse about straight away (see /api/webhooks/shopify). */
+const ORDER_TOPICS = ["ORDERS_PAID", "ORDERS_FULFILLED", "ORDERS_CANCELLED"];
+
+/** Makes sure Shopify calls Pulse when an order is paid, shipped or cancelled. Live site only. */
+async function ensureOrderWebhooks(ctx: SyncContext, s: Settings, token: string): Promise<void> {
+  const host = process.env.VERCEL_ENV === "production" ? process.env.VERCEL_PROJECT_PRODUCTION_URL : undefined;
+  if (!host) return;
+  const uri = `https://${host}/api/webhooks/shopify`;
+  const data = await gql<{ webhookSubscriptions: { nodes: { topic: string; uri: string }[] } }>(
+    ctx,
+    s,
+    token,
+    `{ webhookSubscriptions(first: 50) { nodes { topic uri } } }`,
+    {},
+  );
+  const have = new Set(data.webhookSubscriptions.nodes.filter((n) => n.uri === uri).map((n) => n.topic));
+  for (const topic of ORDER_TOPICS.filter((t) => !have.has(t))) {
+    const res = await gql<{ webhookSubscriptionCreate: { userErrors: { message: string }[] } }>(
+      ctx,
+      s,
+      token,
+      `mutation($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) {
+        webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) { webhookSubscription { id } userErrors { message } }
+      }`,
+      { topic, sub: { uri } },
+    );
+    const errors = res.webhookSubscriptionCreate.userErrors;
+    if (errors.length) throw new Error(`Shopify webhook ${topic}: ${errors.map((e) => e.message).join("; ")}`);
+  }
+}

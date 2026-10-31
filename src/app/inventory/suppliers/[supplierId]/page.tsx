@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { SampleBadge, SupplierEditor } from "@/components/inventory/suppliers";
+import { SampleBadge } from "@/components/inventory/samples";
+import { SupplierEditor } from "@/components/inventory/suppliers";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { listProductTypes } from "@/lib/data/product-types";
 import { getSupplier } from "@/lib/data/suppliers";
