@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { SampleBadge, SupplierEditor } from "@/components/inventory/suppliers";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { listProductTypes } from "@/lib/data/product-types";
 import { getSupplier } from "@/lib/data/suppliers";
 import { KIND_LABEL } from "@/lib/suppliers";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: "Supplier · Inventory" };
 
 async function SupplierPage({ params }: { params: PageProps<"/inventory/suppliers/[supplierId]">["params"] }) {
   const { supplierId } = await params;
-  const { found, today } = await getSupplier(supplierId);
+  const [{ found, today }, types] = await Promise.all([getSupplier(supplierId), listProductTypes()]);
   return (
     <div className="flex flex-col gap-8">
       <Link href="/inventory/suppliers" className="text-sm font-medium text-ink-2 hover:text-ink">
@@ -30,7 +31,7 @@ async function SupplierPage({ params }: { params: PageProps<"/inventory/supplier
               </a>
             )}
           </header>
-          <SupplierEditor key={found.supplier.id} supplier={found.supplier} products={found.products} today={today} />
+          <SupplierEditor key={found.supplier.id} supplier={found.supplier} products={found.products} types={types} today={today} />
         </>
       ) : (
         <p className="text-ink-2">That supplier isn&apos;t on the list any more.</p>

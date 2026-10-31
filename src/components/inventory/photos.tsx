@@ -2,7 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import clsx from "clsx";
+import type { IconKey } from "@/lib/product-types";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { NoPhoto } from "./drawings";
 
 interface Result {
   ok: boolean;
@@ -30,6 +32,7 @@ export function Photos({
   photos,
   photoUrls,
   folder,
+  icon,
   canUpload,
   onAdd,
   onRemove,
@@ -40,6 +43,8 @@ export function Photos({
   photoUrls: string[];
   /** Storage folder for new photos, e.g. "<product id>" or "suppliers/<product id>". */
   folder: string;
+  /** The type's drawing, shown while there are no photos. */
+  icon?: IconKey;
   canUpload: boolean;
   onAdd: (path: string) => Promise<Result>;
   onRemove: (path: string) => Promise<Result>;
@@ -76,6 +81,11 @@ export function Photos({
     <section className="rounded-2xl border border-line bg-surface p-5" aria-busy={pending}>
       <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted uppercase">Photos</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {photos.length === 0 && (
+          <div className="aspect-square overflow-hidden rounded-xl bg-surface-2">
+            <NoPhoto icon={icon} />
+          </div>
+        )}
         {photos.map((path, i) => (
           <figure key={path} className="flex flex-col gap-1">
             <div className="aspect-square overflow-hidden rounded-xl bg-surface-2">

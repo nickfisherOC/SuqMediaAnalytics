@@ -1,23 +1,23 @@
 import "server-only";
 import type { InventoryProduct, StockCell } from "@/lib/inventory";
+import type { CustomField, Specs } from "@/lib/product-types";
 import { createUserClient } from "@/lib/supabase/server";
 import { getViewer } from "./source";
 
 export const PHOTO_BUCKET = "inventory";
 
 const COLUMNS =
-  "id, name, brand, style_number, category, description, fabric, weight, fit, print_notes, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
+  "id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
 
 interface Row {
   id: string;
   name: string;
   brand: string | null;
   style_number: string | null;
-  category: string | null;
+  type_id: string | null;
+  specs: Specs;
+  custom_fields: CustomField[];
   description: string | null;
-  fabric: string | null;
-  weight: string | null;
-  fit: string | null;
   print_notes: string | null;
   cost: number | null;
   location: string | null;
@@ -31,11 +31,10 @@ const toProduct = (r: Row, photoUrls: string[]): InventoryProduct => ({
   name: r.name,
   brand: r.brand,
   styleNumber: r.style_number,
-  category: r.category,
+  typeId: r.type_id,
+  specs: r.specs ?? {},
+  customFields: r.custom_fields ?? [],
   description: r.description,
-  fabric: r.fabric,
-  weight: r.weight,
-  fit: r.fit,
   printNotes: r.print_notes,
   cost: r.cost === null ? null : Number(r.cost),
   location: r.location,
@@ -51,11 +50,10 @@ const PREVIEW: InventoryProduct[] = [
     name: "Heavyweight pullover hoodie",
     brand: "Gildan",
     styleNumber: "18500",
-    category: "Hoodies",
+    typeId: "type-hoodie",
+    specs: { style: "Pullover hoodie", fabric: "50% cotton / 50% polyester", gsm: 271, pilling: "3 – Some pilling", fit: "Classic", season: "All-season" },
+    customFields: [{ label: "Pre-press", value: "5 seconds" }],
     description: "Classic crew hoodie, front pouch pocket.",
-    fabric: "50% cotton / 50% polyester",
-    weight: "8 oz",
-    fit: "Classic",
     printNotes: "DTF and screen print both fine. Pre-press 5 s.",
     cost: 14.5,
     location: "Shelf A2",
@@ -72,11 +70,10 @@ const PREVIEW: InventoryProduct[] = [
     name: "Soft-style tee",
     brand: "Bella+Canvas",
     styleNumber: "3001",
-    category: "T-shirts",
+    typeId: "type-tshirt",
+    specs: { fabric: "100% Airlume cotton", gsm: 142, knit: "Jersey", fit: "Unisex", season: "Summer" },
+    customFields: [],
     description: null,
-    fabric: "100% Airlume cotton",
-    weight: "4.2 oz",
-    fit: "Retail",
     printNotes: null,
     cost: 6.25,
     location: "Shelf B1",

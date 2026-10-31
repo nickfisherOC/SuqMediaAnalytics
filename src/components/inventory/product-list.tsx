@@ -4,14 +4,18 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { createProduct } from "@/app/inventory/actions";
 import { lowCells, totalUnits, type InventoryProduct } from "@/lib/inventory";
+import type { ProductType } from "@/lib/product-types";
+import { NoPhoto } from "./drawings";
+import { TypeSelect, cardSpecs } from "./specs-editor";
 
 /** Every product on the shelves as cards, with a search box and an Add button. */
-export function ProductList({ products }: { products: InventoryProduct[] }) {
+export function ProductList({ products, types }: { products: InventoryProduct[]; types: ProductType[] }) {
   const [query, setQuery] = useState("");
+  const typeOf = (id: string | null) => types.find((t) => t.id === id) ?? null;
   const q = query.trim().toLowerCase();
   const shown = q
     ? products.filter((p) =>
-        [p.name, p.brand, p.styleNumber, p.category, p.location, ...p.stock.map((s) => s.colour)].some((v) => v?.toLowerCase().includes(q)),
+        [p.name, p.brand, p.styleNumber, typeOf(p.typeId)?.name, p.location, ...p.stock.map((s) => s.colour), ...Object.values(p.specs).map(String)].some((v) => v?.toLowerCase().includes(q)),
       )
     : products;
   const units = products.reduce((n, p) => n + totalUnits(p.stock), 0);
@@ -29,7 +33,7 @@ export function ProductList({ products }: { products: InventoryProduct[] }) {
             </>
           )}
         </p>
-        <AddProduct />
+        <AddProduct types={types} />
       </div>
 
       {products.length > 0 && (
@@ -37,7 +41,7 @@ export function ProductList({ products }: { products: InventoryProduct[] }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, brand, style, colour or shelf"
+          placeholder="Search by name, type, brand, colour, spec or shelf"
           aria-label="Search inventory"
           className="h-10 w-full max-w-md rounded-lg border border-line bg-surface px-3 text-sm"
         />
@@ -53,7 +57,7 @@ export function ProductList({ products }: { products: InventoryProduct[] }) {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {shown.map((p) => (
             <li key={p.id}>
-              <ProductCard product={p} />
+              <ProductCard product={p} type={typeOf(p.typeId)} />
             </li>
           ))}
         </ul>
@@ -62,7 +66,7 @@ export function ProductList({ products }: { products: InventoryProduct[] }) {
   );
 }
 
-function ProductCard({ product: p }: { product: InventoryProduct }) {
+function ProductCard({ product: p, type }: { product: InventoryProduct; type: ProductType | null }) {
   const low = lowCells(p.stock, p.lowStockAt);
   const colours = new Set(p.stock.map((s) => s.colour).filter(Boolean)).size;
   return (
@@ -73,12 +77,13 @@ function ProductCard({ product: p }: { product: InventoryProduct }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.photoUrls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <div className="grid h-full place-items-center text-sm text-muted">No photo yet</div>
+          <NoPhoto icon={type?.icon} />
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">
         <h2 className="leading-snug font-semibold">{p.name}</h2>
         <p className="text-sm text-ink-2">{[p.brand, p.styleNumber].filter(Boolean).join(" · ") || "No brand or style yet"}</p>
+        <p className="text-sm text-ink-2">{cardSpecs(type, p.specs) || "No type yet"}</p>
         <p className="mt-auto pt-2 text-sm">
           <span className="font-semibold">{totalUnits(p.stock).toLocaleString("en-CA")}</span> units
           {colours > 0 && <span className="text-ink-2"> · {colours} {colours === 1 ? "colour" : "colours"}</span>}
@@ -94,7 +99,7 @@ function ProductCard({ product: p }: { product: InventoryProduct }) {
   );
 }
 
-function AddProduct() {
+function AddProduct({ types }: { types: ProductType[] }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
@@ -112,6 +117,7 @@ function AddProduct() {
         Add a product
         <input name="name" required maxLength={120} placeholder="e.g. Black pullover hoodie" className="h-9 w-64 rounded-lg border border-line bg-page px-3 text-sm text-ink" />
       </label>
+      <TypeSelect types={types} />
       <button type="submit" disabled={pending} className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-page disabled:opacity-60">
         {pending ? "Adding…" : "Add"}
       </button>

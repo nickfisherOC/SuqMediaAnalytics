@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { PHOTO_BUCKET } from "@/lib/data/inventory";
+import { readSpecsForm } from "@/lib/data/product-types";
 import { getViewer } from "@/lib/data/source";
 import { normalizeSize } from "@/lib/inventory";
 import { createUserClient } from "@/lib/supabase/server";
@@ -40,7 +41,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     const { ctx, db } = await live();
     const name = text(formData, "name", 120);
     if (!name) return { ok: false, message: "Give the product a name." };
-    const { data, error } = await db.from("inventory_products").insert({ name, created_by: ctx.viewer.id }).select("id").single();
+    const { data, error } = await db.from("inventory_products").insert({ name, type_id: String(formData.get("type_id") ?? "") || null, created_by: ctx.viewer.id }).select("id").single();
     if (error) return { ok: false, message: error.message };
     id = data.id;
   } catch (e) {
@@ -54,26 +55,25 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   if (!name) return { ok: false, message: "The product needs a name." };
   const cost = Number(String(formData.get("cost") ?? "").replace(/[$,\s]/g, ""));
   const low = Number(formData.get("low_stock_at"));
-  return run((db) =>
-    db
+  return run(async (db) => {
+    const { data: prev } = await db.from("inventory_products").select("specs").eq("id", id).maybeSingle();
+    const specs = await readSpecsForm(db, formData, prev?.specs ?? {});
+    return db
       .from("inventory_products")
       .update({
         name,
+        ...specs,
         brand: text(formData, "brand", 80),
         style_number: text(formData, "style_number", 60),
-        category: text(formData, "category", 60),
         description: text(formData, "description", 2000),
-        fabric: text(formData, "fabric", 200),
-        weight: text(formData, "weight", 60),
-        fit: text(formData, "fit", 60),
         print_notes: text(formData, "print_notes", 1000),
         cost: String(formData.get("cost") ?? "").trim() && Number.isFinite(cost) && cost >= 0 ? cost : null,
         location: text(formData, "location", 80),
         low_stock_at: Number.isInteger(low) && low >= 0 ? low : 0,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id),
-  );
+      .eq("id", id);
+  });
 }
 
 /** Takes the product off the list. It's kept, not deleted. */

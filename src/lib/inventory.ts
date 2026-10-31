@@ -1,3 +1,5 @@
+import type { CustomField, Specs } from "@/lib/product-types";
+
 /** Calgary stock: products with photos and specs, counted by colour × size. */
 
 export interface StockCell {
@@ -12,11 +14,12 @@ export interface InventoryProduct {
   name: string;
   brand: string | null;
   styleNumber: string | null;
-  category: string | null;
   description: string | null;
-  fabric: string | null;
-  weight: string | null;
-  fit: string | null;
+  typeId: string | null;
+  /** Spec values for the type's fields, by key. */
+  specs: Specs;
+  /** Anything the type doesn't cover. */
+  customFields: CustomField[];
   printNotes: string | null;
   cost: number | null;
   location: string | null;

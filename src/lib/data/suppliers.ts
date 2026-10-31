@@ -9,7 +9,7 @@ type Db = Awaited<ReturnType<typeof createUserClient>>;
 
 const SUPPLIER_COLUMNS = "id, name, kind, location, website, contact_name, contact_email, contact_phone, lead_time, shipping_notes, notes, is_sample";
 const PRODUCT_COLUMNS =
-  "id, supplier_id, name, brand, style_number, category, description, fabric, weight, fit, print_notes, photos, colours, sizes, moq, moq_per, price_breaks, lead_time, sample_cost, last_checked, is_sample";
+  "id, supplier_id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, photos, colours, sizes, moq, moq_per, price_breaks, lead_time, sample_cost, last_checked, is_sample";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- rows straight from PostgREST */
 const toSupplier = (r: any): Supplier => ({
@@ -33,11 +33,10 @@ const toProduct = (r: any, photoUrls: string[]): SupplierProduct => ({
   name: r.name,
   brand: r.brand,
   styleNumber: r.style_number,
-  category: r.category,
+  typeId: r.type_id,
+  specs: r.specs ?? {},
+  customFields: r.custom_fields ?? [],
   description: r.description,
-  fabric: r.fabric,
-  weight: r.weight,
-  fit: r.fit,
   printNotes: r.print_notes,
   photos: r.photos,
   photoUrls,
@@ -68,11 +67,11 @@ const PREVIEW_SUPPLIERS: Supplier[] = [
   { id: "sup-factory", name: "Example Garment Factory", kind: "manufacturer", location: "Overseas", website: null, contactName: "Lee (sample)", contactEmail: "factory@example.com", contactPhone: null, leadTime: "30–40 days to make, plus 10–14 days sea freight", shippingNotes: null, notes: "Custom cut-and-sew with our own labels.", isSample: true },
 ];
 
-const base = { brand: "Example", styleNumber: null, description: null, weight: null, fit: null, printNotes: null, photos: [], photoUrls: [], leadTime: null, sampleCost: null, isSample: true };
+const base = { brand: "Example", styleNumber: null, description: null, customFields: [], printNotes: null, photos: [], photoUrls: [], leadTime: null, sampleCost: null, isSample: true };
 const PREVIEW_PRODUCTS: SupplierProduct[] = [
-  { ...base, id: "sp-hoodie", supplierId: "sup-print", name: "Premium pullover hoodie (printed)", category: "Hoodies", fabric: "80% cotton / 20% polyester", colours: ["Black", "Charcoal", "Navy"], sizes: ["S", "M", "L", "XL", "2XL", "3XL"], moq: 1, moqPer: "order", priceBreaks: pb([1, 42], [10, 38.5], [25, 35]), lastChecked: "2026-10-28" },
-  { ...base, id: "sp-cap", supplierId: "sup-print", name: "Embroidered snapback", category: "Hats", fabric: "Cotton twill", colours: ["Black", "Khaki"], sizes: ["One size"], moq: 6, moqPer: "order", priceBreaks: pb([6, 24], [24, 20]), lastChecked: "2026-06-20" },
-  { ...base, id: "sp-custom", supplierId: "sup-factory", name: "Custom crew hoodie (cut and sew)", category: "Hoodies", fabric: "400 gsm fleece", colours: ["Any (Pantone match)"], sizes: ["S", "M", "L", "XL", "2XL"], moq: 50, moqPer: "colour", priceBreaks: pb([50, 28], [200, 22.5], [500, 19]), sampleCost: 85, lastChecked: "2026-10-15" },
+  { ...base, id: "sp-hoodie", supplierId: "sup-print", name: "Premium pullover hoodie (printed)", typeId: "type-hoodie", specs: { fabric: "80% cotton / 20% polyester", gsm: 305, pilling: "4 – Slight pilling", season: "All-season" }, colours: ["Black", "Charcoal", "Navy"], sizes: ["S", "M", "L", "XL", "2XL", "3XL"], moq: 1, moqPer: "order", priceBreaks: pb([1, 42], [10, 38.5], [25, 35]), lastChecked: "2026-10-28" },
+  { ...base, id: "sp-cap", supplierId: "sup-print", name: "Embroidered snapback", typeId: "type-hat", specs: { style: "Snapback", fabric: "Cotton twill", panels: 6 }, colours: ["Black", "Khaki"], sizes: ["One size"], moq: 6, moqPer: "order", priceBreaks: pb([6, 24], [24, 20]), lastChecked: "2026-06-20" },
+  { ...base, id: "sp-custom", supplierId: "sup-factory", name: "Custom crew hoodie (cut and sew)", typeId: "type-hoodie", specs: { gsm: 400, knit: "French terry", pilling: "5 – No pilling", season: "Winter" }, colours: ["Any (Pantone match)"], sizes: ["S", "M", "L", "XL", "2XL"], moq: 50, moqPer: "colour", priceBreaks: pb([50, 28], [200, 22.5], [500, 19]), sampleCost: 85, lastChecked: "2026-10-15" },
 ];
 
 // ─── Queries ──────────────────────────────────────────────────────────────

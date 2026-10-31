@@ -32,7 +32,10 @@ import {
   type SupplierKind,
   type SupplierProduct,
 } from "@/lib/suppliers";
+import type { ProductType } from "@/lib/product-types";
+import { NoPhoto } from "./drawings";
 import { Photos } from "./photos";
+import { SpecsEditor, SpecsSummary, TypeSelect, cardSpecs } from "./specs-editor";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
 const field = "h-9 w-full rounded-lg border border-line bg-page px-3 text-sm text-ink";
@@ -77,20 +80,23 @@ const sizeRange = (sizes: string[]) => (sizes.length > 2 ? `${sizes[0]}–${size
 /** Every supplier with its products, a search box, and Add supplier. */
 export function SupplierDirectory({
   suppliers,
+  types,
   today,
   isAdmin,
 }: {
   suppliers: { supplier: Supplier; products: SupplierProduct[] }[];
+  types: ProductType[];
   today: ISODate;
   isAdmin: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const typeName = (id: string | null) => types.find((t) => t.id === id)?.name;
   const q = query.trim().toLowerCase();
   const hit = (v: string | null | undefined) => Boolean(v?.toLowerCase().includes(q));
   const shown = suppliers
     .map(({ supplier, products }) => ({
       supplier,
-      products: !q || hit(supplier.name) || hit(KIND_LABEL[supplier.kind]) ? products : products.filter((p) => [p.name, p.brand, p.styleNumber, p.category, ...p.colours].some(hit)),
+      products: !q || hit(supplier.name) || hit(KIND_LABEL[supplier.kind]) ? products : products.filter((p) => [p.name, p.brand, p.styleNumber, typeName(p.typeId), ...p.colours, ...Object.values(p.specs).map(String)].some(hit)),
     }))
     .filter(({ supplier, products }) => !q || products.length > 0 || hit(supplier.name));
   const hasSample = suppliers.some((s) => s.supplier.isSample || s.products.some((p) => p.isSample));
@@ -143,7 +149,7 @@ export function SupplierDirectory({
               </Link>
             </div>
             {supplier.leadTime && <p className="-mt-2 text-sm text-ink-2">Lead time: {supplier.leadTime}</p>}
-            <ProductGrid supplierId={supplier.id} products={products} today={today} />
+            <ProductGrid supplierId={supplier.id} products={products} types={types} today={today} />
           </section>
         ))
       )}
@@ -207,13 +213,14 @@ function KindSelect({ value }: { value?: SupplierKind }) {
   );
 }
 
-function ProductGrid({ supplierId, products, today }: { supplierId: string; products: SupplierProduct[]; today: ISODate }) {
+function ProductGrid({ supplierId, products, types, today }: { supplierId: string; products: SupplierProduct[]; types: ProductType[]; today: ISODate }) {
   if (!products.length) return <p className="text-sm text-ink-2">No products from this supplier yet.</p>;
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {products.map((p) => {
         const checked = checkedLabel(p.lastChecked, today);
         const price = fromPrice(p.priceBreaks);
+        const type = types.find((t) => t.id === p.typeId) ?? null;
         return (
           <li key={p.id}>
             <Link href={`/inventory/suppliers/${supplierId}/${p.id}`} className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface hover:border-ink-2">
@@ -223,7 +230,7 @@ function ProductGrid({ supplierId, products, today }: { supplierId: string; prod
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.photoUrls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted">No photo yet</div>
+                  <NoPhoto icon={type?.icon} />
                 )}
               </div>
               <div className="flex flex-1 flex-col gap-1 p-4">
@@ -231,7 +238,8 @@ function ProductGrid({ supplierId, products, today }: { supplierId: string; prod
                   <h3 className="leading-snug font-semibold">{p.name}</h3>
                   {p.isSample && <SampleBadge />}
                 </div>
-                <p className="text-sm text-ink-2">{[p.brand, p.styleNumber, p.category].filter(Boolean).join(" · ")}</p>
+                <p className="text-sm text-ink-2">{[p.brand, p.styleNumber].filter(Boolean).join(" · ")}</p>
+                <p className="text-sm text-ink-2">{cardSpecs(type, p.specs) || "No type yet"}</p>
                 <p className="mt-auto pt-2 text-sm font-semibold">
                   {moqLabel(p.moq, p.moqPer)}
                   {price && <span className="font-normal text-ink-2"> · {price}</span>}
@@ -267,7 +275,7 @@ const SUPPLIER_FIELDS: { name: string; label: string; key: keyof Supplier; place
   { name: "notes", label: "Notes", key: "notes", long: true },
 ];
 
-export function SupplierEditor({ supplier, products, today }: { supplier: Supplier; products: SupplierProduct[]; today: ISODate }) {
+export function SupplierEditor({ supplier, products, types, today }: { supplier: Supplier; products: SupplierProduct[]; types: ProductType[]; today: ISODate }) {
   const details = useAction();
   const archive = useAction();
   return (
@@ -275,9 +283,9 @@ export function SupplierEditor({ supplier, products, today }: { supplier: Suppli
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-2xl font-bold tracking-tight">What we can order</h2>
-          <AddSupplierProduct supplierId={supplier.id} />
+          <AddSupplierProduct supplierId={supplier.id} types={types} />
         </div>
-        <ProductGrid supplierId={supplier.id} products={products} today={today} />
+        <ProductGrid supplierId={supplier.id} products={products} types={types} today={today} />
       </section>
 
       <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); details.run(() => updateSupplier(supplier.id, fd), "Saved."); }} className={clsx(card, "flex max-w-2xl flex-col gap-3")}>
@@ -319,7 +327,7 @@ export function SupplierEditor({ supplier, products, today }: { supplier: Suppli
   );
 }
 
-function AddSupplierProduct({ supplierId }: { supplierId: string }) {
+function AddSupplierProduct({ supplierId, types }: { supplierId: string; types: ProductType[] }) {
   const { pending, message, run } = useAction();
   return (
     <form action={(fd) => run(() => createSupplierProduct(supplierId, fd))} className="flex flex-wrap items-end gap-2">
@@ -327,6 +335,7 @@ function AddSupplierProduct({ supplierId }: { supplierId: string }) {
         Add a product
         <input name="name" required maxLength={120} placeholder="e.g. Heavyweight hoodie" className="h-9 w-56 rounded-lg border border-line bg-page px-3 text-sm text-ink" />
       </label>
+      <TypeSelect types={types} />
       <button type="submit" disabled={pending} className={button}>
         {pending ? "Adding…" : "Add"}
       </button>
@@ -339,16 +348,31 @@ function AddSupplierProduct({ supplierId }: { supplierId: string }) {
 
 // ─── One supplier product ─────────────────────────────────────────────────
 
-export function SupplierProductEditor({ supplier, product, today, canUpload }: { supplier: Supplier; product: SupplierProduct; today: ISODate; canUpload: boolean }) {
+export function SupplierProductEditor({
+  supplier,
+  product,
+  types,
+  today,
+  canUpload,
+}: {
+  supplier: Supplier;
+  product: SupplierProduct;
+  types: ProductType[];
+  today: ISODate;
+  canUpload: boolean;
+}) {
+  const type = types.find((t) => t.id === product.typeId) ?? null;
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="flex flex-col gap-6">
         <Summary supplier={supplier} product={product} today={today} />
+        <SpecsSummary type={type} specs={product.specs} customFields={product.customFields} />
         <Photos
           name={product.name}
           photos={product.photos}
           photoUrls={product.photoUrls}
           folder={`suppliers/${product.id}`}
+          icon={type?.icon}
           canUpload={canUpload}
           onAdd={(path) => addSupplierPhoto(product.id, path)}
           onRemove={(path) => removeSupplierPhoto(product.id, path)}
@@ -356,7 +380,7 @@ export function SupplierProductEditor({ supplier, product, today, canUpload }: {
         />
       </div>
       <div className="flex flex-col gap-6">
-        <ProductDetails product={product} />
+        <ProductDetails product={product} types={types} />
         <ArchiveProduct product={product} />
       </div>
     </div>
@@ -433,15 +457,11 @@ const PRODUCT_FIELDS: { name: string; label: string; key: keyof SupplierProduct;
   { name: "name", label: "Name", key: "name" },
   { name: "brand", label: "Brand", key: "brand" },
   { name: "style_number", label: "Style number", key: "styleNumber" },
-  { name: "category", label: "Type", key: "category", placeholder: "e.g. Hoodie, T-shirt, Hat" },
-  { name: "fabric", label: "Fabric", key: "fabric" },
-  { name: "weight", label: "Weight", key: "weight", placeholder: "e.g. 8 oz or 270 gsm" },
-  { name: "fit", label: "Fit", key: "fit" },
   { name: "description", label: "Description", key: "description", long: true },
   { name: "print_notes", label: "Printing / decoration", key: "printNotes", placeholder: "What they can print or stitch, and where", long: true },
 ];
 
-function ProductDetails({ product: p }: { product: SupplierProduct }) {
+function ProductDetails({ product: p, types }: { product: SupplierProduct; types: ProductType[] }) {
   const { pending, message, run } = useAction();
   const [breaks, setBreaks] = useState<{ key: number; minQty: string; price: string }[]>(() => {
     const rows = cleanBreaks(p.priceBreaks).map((b: PriceBreak, i) => ({ key: i, minQty: String(b.minQty), price: String(b.price) }));
@@ -464,6 +484,7 @@ function ProductDetails({ product: p }: { product: SupplierProduct }) {
           )}
         </label>
       ))}
+      <SpecsEditor types={types} typeId={p.typeId} specs={p.specs} customFields={p.customFields} table="supplier" productId={p.id} />
 
       <p className="mt-2 text-sm font-semibold">Ordering</p>
       <div className="grid grid-cols-2 gap-3">

@@ -16,7 +16,9 @@ import {
   type ActionResult,
 } from "@/app/inventory/actions";
 import { STANDARD_SIZES, stockGrid, totalUnits, type InventoryProduct, type StockCell } from "@/lib/inventory";
+import type { IconKey, ProductType } from "@/lib/product-types";
 import { Photos } from "./photos";
+import { SpecsEditor, SpecsSummary } from "./specs-editor";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
 const field = "h-9 w-full rounded-lg border border-line bg-page px-3 text-sm text-ink";
@@ -38,28 +40,31 @@ const Message = ({ m }: { m: { ok: boolean; text: string } | null }) =>
   m && <p className={clsx("text-sm", m.ok ? "text-good" : "text-bad")} role={m.ok ? "status" : "alert"}>{m.text}</p>;
 
 /** A product's page: photos, the colour × size counts, and its details. */
-export function ProductEditor({ product, canUpload }: { product: InventoryProduct; canUpload: boolean }) {
+export function ProductEditor({ product, types, canUpload }: { product: InventoryProduct; types: ProductType[]; canUpload: boolean }) {
+  const type = types.find((t) => t.id === product.typeId) ?? null;
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="flex flex-col gap-6">
-        <ProductPhotos product={product} canUpload={canUpload} />
+        <ProductPhotos product={product} icon={type?.icon} canUpload={canUpload} />
+        <SpecsSummary type={type} specs={product.specs} customFields={product.customFields} />
         <Stock product={product} />
       </div>
       <div className="flex flex-col gap-6">
-        <Details product={product} />
+        <Details product={product} types={types} />
         <Archive product={product} />
       </div>
     </div>
   );
 }
 
-function ProductPhotos({ product, canUpload }: { product: InventoryProduct; canUpload: boolean }) {
+function ProductPhotos({ product, icon, canUpload }: { product: InventoryProduct; icon?: IconKey; canUpload: boolean }) {
   return (
     <Photos
       name={product.name}
       photos={product.photos}
       photoUrls={product.photoUrls}
       folder={product.id}
+      icon={icon}
       canUpload={canUpload}
       onAdd={(path) => addPhoto(product.id, path)}
       onRemove={(path) => removePhoto(product.id, path)}
@@ -238,16 +243,12 @@ const DETAILS: { name: string; label: string; key: keyof InventoryProduct; place
   { name: "name", label: "Name", key: "name" },
   { name: "brand", label: "Brand", key: "brand", placeholder: "e.g. Gildan" },
   { name: "style_number", label: "Style number", key: "styleNumber", placeholder: "e.g. 18500" },
-  { name: "category", label: "Type", key: "category", placeholder: "e.g. Hoodie, T-shirt, Hat" },
-  { name: "fabric", label: "Fabric", key: "fabric", placeholder: "e.g. 50% cotton / 50% polyester" },
-  { name: "weight", label: "Weight", key: "weight", placeholder: "e.g. 8 oz or 270 gsm" },
-  { name: "fit", label: "Fit", key: "fit", placeholder: "e.g. Classic, Relaxed, Women's" },
   { name: "location", label: "Where it is", key: "location", placeholder: "e.g. Shelf A2" },
   { name: "description", label: "Description", key: "description", long: true },
   { name: "print_notes", label: "Printing notes", key: "printNotes", placeholder: "What prints well on it, press settings…", long: true },
 ];
 
-function Details({ product }: { product: InventoryProduct }) {
+function Details({ product, types }: { product: InventoryProduct; types: ProductType[] }) {
   const { pending, message, run } = useAction();
   return (
     <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); run(() => updateProduct(product.id, fd), "Saved."); }} className={clsx(card, "flex flex-col gap-3")}>
@@ -262,6 +263,7 @@ function Details({ product }: { product: InventoryProduct }) {
           )}
         </label>
       ))}
+      <SpecsEditor types={types} typeId={product.typeId} specs={product.specs} customFields={product.customFields} table="inventory" productId={product.id} />
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Cost per unit (CAD)

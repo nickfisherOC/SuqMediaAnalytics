@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { PHOTO_BUCKET } from "@/lib/data/inventory";
+import { readSpecsForm } from "@/lib/data/product-types";
 import { getViewer } from "@/lib/data/source";
 import { isISODate } from "@/lib/dates";
 import { normalizeSize, sortSizes } from "@/lib/inventory";
@@ -109,7 +110,7 @@ export async function createSupplierProduct(supplierId: string, formData: FormDa
     const { ctx, db } = await live();
     const name = text(formData, "name", 120);
     if (!name) return { ok: false, message: "Give the product a name." };
-    const { data, error } = await db.from("supplier_products").insert({ supplier_id: supplierId, name, created_by: ctx.viewer.id }).select("id").single();
+    const { data, error } = await db.from("supplier_products").insert({ supplier_id: supplierId, name, type_id: String(formData.get("type_id") ?? "") || null, created_by: ctx.viewer.id }).select("id").single();
     if (error) return { ok: false, message: error.message };
     id = data.id;
   } catch (e) {
@@ -137,18 +138,17 @@ export async function updateSupplierProduct(id: string, formData: FormData): Pro
   const checked = String(formData.get("last_checked") ?? "");
   const per = String(formData.get("moq_per") ?? "order") as MoqPer;
 
-  return run((db) =>
-    db
+  return run(async (db) => {
+    const { data: prev } = await db.from("supplier_products").select("specs").eq("id", id).maybeSingle();
+    const specs = await readSpecsForm(db, formData, prev?.specs ?? {});
+    return db
       .from("supplier_products")
       .update({
         name,
+        ...specs,
         brand: text(formData, "brand", 80),
         style_number: text(formData, "style_number", 60),
-        category: text(formData, "category", 60),
         description: text(formData, "description", 2000),
-        fabric: text(formData, "fabric", 200),
-        weight: text(formData, "weight", 60),
-        fit: text(formData, "fit", 60),
         print_notes: text(formData, "print_notes", 1000),
         colours: splitList(String(formData.get("colours") ?? "")),
         sizes,
@@ -160,8 +160,8 @@ export async function updateSupplierProduct(id: string, formData: FormData): Pro
         last_checked: isISODate(checked) ? checked : null,
         updated_at: now(),
       })
-      .eq("id", id),
-  );
+      .eq("id", id);
+  });
 }
 
 /** "I just confirmed this with the supplier": last checked = today (Edmonton). */
