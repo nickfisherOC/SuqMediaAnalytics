@@ -18,6 +18,7 @@ import {
 import { STANDARD_SIZES, stockGrid, totalUnits, type InventoryProduct, type StockCell } from "@/lib/inventory";
 import type { IconKey, ProductType } from "@/lib/product-types";
 import { Photos } from "./photos";
+import { BrandingEditor, BrandingSummary } from "./branding";
 import { SpecsEditor, SpecsSummary } from "./specs-editor";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
@@ -47,6 +48,7 @@ export function ProductEditor({ product, types, canUpload }: { product: Inventor
       <div className="flex flex-col gap-6">
         <ProductPhotos product={product} icon={type?.icon} canUpload={canUpload} />
         <SpecsSummary type={type} specs={product.specs} customFields={product.customFields} />
+        <BrandingSummary methods={product.brandingMethods} areas={product.imprintAreas} notes={product.printNotes} />
         <Stock product={product} />
       </div>
       <div className="flex flex-col gap-6">
@@ -245,7 +247,6 @@ const DETAILS: { name: string; label: string; key: keyof InventoryProduct; place
   { name: "style_number", label: "Style number", key: "styleNumber", placeholder: "e.g. 18500" },
   { name: "location", label: "Where it is", key: "location", placeholder: "e.g. Shelf A2" },
   { name: "description", label: "Description", key: "description", long: true },
-  { name: "print_notes", label: "Printing notes", key: "printNotes", placeholder: "What prints well on it, press settings…", long: true },
 ];
 
 function Details({ product, types }: { product: InventoryProduct; types: ProductType[] }) {
@@ -264,6 +265,14 @@ function Details({ product, types }: { product: InventoryProduct; types: Product
         </label>
       ))}
       <SpecsEditor types={types} typeId={product.typeId} specs={product.specs} customFields={product.customFields} table="inventory" productId={product.id} />
+      <BrandingEditor
+        methods={product.brandingMethods}
+        areas={product.imprintAreas}
+        notes={product.printNotes}
+        typeSlug={types.find((t) => t.id === product.typeId)?.slug}
+        productId={product.id}
+        who="we"
+      />
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Cost per unit (CAD)

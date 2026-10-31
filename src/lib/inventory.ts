@@ -1,3 +1,4 @@
+import type { ImprintArea } from "@/lib/branding";
 import type { CustomField, Specs } from "@/lib/product-types";
 
 /** Calgary stock: products with photos and specs, counted by colour × size. */
@@ -21,6 +22,10 @@ export interface InventoryProduct {
   /** Anything the type doesn't cover. */
   customFields: CustomField[];
   printNotes: string | null;
+  /** Ways a logo can go on it, e.g. "Embroidery". */
+  brandingMethods: string[];
+  /** Where a logo can go, and how big. */
+  imprintAreas: ImprintArea[];
   cost: number | null;
   location: string | null;
   lowStockAt: number;

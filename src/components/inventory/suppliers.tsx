@@ -17,6 +17,7 @@ import {
   updateSupplierProduct,
   type ActionResult,
 } from "@/app/inventory/suppliers/actions";
+import { methodsLabel } from "@/lib/branding";
 import type { ISODate } from "@/lib/dates";
 import { STANDARD_SIZES } from "@/lib/inventory";
 import {
@@ -35,6 +36,7 @@ import {
 import type { ProductType } from "@/lib/product-types";
 import { NoPhoto } from "./drawings";
 import { Photos } from "./photos";
+import { BrandingEditor, BrandingSummary } from "./branding";
 import { SpecsEditor, SpecsSummary, TypeSelect, cardSpecs } from "./specs-editor";
 
 const card = "rounded-2xl border border-line bg-surface p-5";
@@ -96,7 +98,7 @@ export function SupplierDirectory({
   const shown = suppliers
     .map(({ supplier, products }) => ({
       supplier,
-      products: !q || hit(supplier.name) || hit(KIND_LABEL[supplier.kind]) ? products : products.filter((p) => [p.name, p.brand, p.styleNumber, typeName(p.typeId), ...p.colours, ...Object.values(p.specs).map(String)].some(hit)),
+      products: !q || hit(supplier.name) || hit(KIND_LABEL[supplier.kind]) ? products : products.filter((p) => [p.name, p.brand, p.styleNumber, typeName(p.typeId), ...p.colours, ...Object.values(p.specs).map(String), ...p.brandingMethods].some(hit)),
     }))
     .filter(({ supplier, products }) => !q || products.length > 0 || hit(supplier.name));
   const hasSample = suppliers.some((s) => s.supplier.isSample || s.products.some((p) => p.isSample));
@@ -119,7 +121,7 @@ export function SupplierDirectory({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search suppliers, products, brands, colours"
+          placeholder="Search suppliers, products, colours, specs, branding"
           aria-label="Search suppliers"
           className="h-10 w-full max-w-md rounded-lg border border-line bg-surface px-3 text-sm"
         />
@@ -240,6 +242,7 @@ function ProductGrid({ supplierId, products, types, today }: { supplierId: strin
                 </div>
                 <p className="text-sm text-ink-2">{[p.brand, p.styleNumber].filter(Boolean).join(" · ")}</p>
                 <p className="text-sm text-ink-2">{cardSpecs(type, p.specs) || "No type yet"}</p>
+                {methodsLabel(p.brandingMethods) && <p className="text-sm text-ink-2">Branding: {methodsLabel(p.brandingMethods)}</p>}
                 <p className="mt-auto pt-2 text-sm font-semibold">
                   {moqLabel(p.moq, p.moqPer)}
                   {price && <span className="font-normal text-ink-2"> · {price}</span>}
@@ -367,6 +370,7 @@ export function SupplierProductEditor({
       <div className="flex flex-col gap-6">
         <Summary supplier={supplier} product={product} today={today} />
         <SpecsSummary type={type} specs={product.specs} customFields={product.customFields} />
+        <BrandingSummary methods={product.brandingMethods} areas={product.imprintAreas} notes={product.printNotes} />
         <Photos
           name={product.name}
           photos={product.photos}
@@ -458,7 +462,6 @@ const PRODUCT_FIELDS: { name: string; label: string; key: keyof SupplierProduct;
   { name: "brand", label: "Brand", key: "brand" },
   { name: "style_number", label: "Style number", key: "styleNumber" },
   { name: "description", label: "Description", key: "description", long: true },
-  { name: "print_notes", label: "Printing / decoration", key: "printNotes", placeholder: "What they can print or stitch, and where", long: true },
 ];
 
 function ProductDetails({ product: p, types }: { product: SupplierProduct; types: ProductType[] }) {
@@ -485,6 +488,14 @@ function ProductDetails({ product: p, types }: { product: SupplierProduct; types
         </label>
       ))}
       <SpecsEditor types={types} typeId={p.typeId} specs={p.specs} customFields={p.customFields} table="supplier" productId={p.id} />
+      <BrandingEditor
+        methods={p.brandingMethods}
+        areas={p.imprintAreas}
+        notes={p.printNotes}
+        typeSlug={types.find((t) => t.id === p.typeId)?.slug}
+        productId={p.id}
+        who="the supplier"
+      />
 
       <p className="mt-2 text-sm font-semibold">Ordering</p>
       <div className="grid grid-cols-2 gap-3">

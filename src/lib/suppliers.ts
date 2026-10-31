@@ -1,4 +1,5 @@
 import { diffDays, formatShort, type ISODate } from "@/lib/dates";
+import type { ImprintArea } from "@/lib/branding";
 import type { CustomField, Specs } from "@/lib/product-types";
 
 /** Dropshippers, distributors and manufacturers, and the products we can get from them. */
@@ -52,6 +53,10 @@ export interface SupplierProduct {
   /** Anything the type doesn't cover. */
   customFields: CustomField[];
   printNotes: string | null;
+  /** Ways a logo can go on it, e.g. "Embroidery". */
+  brandingMethods: string[];
+  /** Where a logo can go, and how big. */
+  imprintAreas: ImprintArea[];
   photos: string[];
   photoUrls: string[];
   colours: string[];

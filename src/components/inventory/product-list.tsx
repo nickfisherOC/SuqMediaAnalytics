@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { createProduct } from "@/app/inventory/actions";
+import { methodsLabel } from "@/lib/branding";
 import { lowCells, totalUnits, type InventoryProduct } from "@/lib/inventory";
 import type { ProductType } from "@/lib/product-types";
 import { NoPhoto } from "./drawings";
@@ -15,7 +16,7 @@ export function ProductList({ products, types }: { products: InventoryProduct[];
   const q = query.trim().toLowerCase();
   const shown = q
     ? products.filter((p) =>
-        [p.name, p.brand, p.styleNumber, typeOf(p.typeId)?.name, p.location, ...p.stock.map((s) => s.colour), ...Object.values(p.specs).map(String)].some((v) => v?.toLowerCase().includes(q)),
+        [p.name, p.brand, p.styleNumber, typeOf(p.typeId)?.name, p.location, ...p.stock.map((s) => s.colour), ...Object.values(p.specs).map(String), ...p.brandingMethods].some((v) => v?.toLowerCase().includes(q)),
       )
     : products;
   const units = products.reduce((n, p) => n + totalUnits(p.stock), 0);
@@ -41,7 +42,7 @@ export function ProductList({ products, types }: { products: InventoryProduct[];
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, type, brand, colour, spec or shelf"
+          placeholder="Search by name, type, brand, colour, spec, branding or shelf"
           aria-label="Search inventory"
           className="h-10 w-full max-w-md rounded-lg border border-line bg-surface px-3 text-sm"
         />
@@ -84,6 +85,7 @@ function ProductCard({ product: p, type }: { product: InventoryProduct; type: Pr
         <h2 className="leading-snug font-semibold">{p.name}</h2>
         <p className="text-sm text-ink-2">{[p.brand, p.styleNumber].filter(Boolean).join(" · ") || "No brand or style yet"}</p>
         <p className="text-sm text-ink-2">{cardSpecs(type, p.specs) || "No type yet"}</p>
+        {methodsLabel(p.brandingMethods) && <p className="text-sm text-ink-2">Branding: {methodsLabel(p.brandingMethods)}</p>}
         <p className="mt-auto pt-2 text-sm">
           <span className="font-semibold">{totalUnits(p.stock).toLocaleString("en-CA")}</span> units
           {colours > 0 && <span className="text-ink-2"> · {colours} {colours === 1 ? "colour" : "colours"}</span>}

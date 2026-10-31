@@ -1,4 +1,5 @@
 import "server-only";
+import { readAreas } from "@/lib/branding";
 import type { InventoryProduct, StockCell } from "@/lib/inventory";
 import type { CustomField, Specs } from "@/lib/product-types";
 import { createUserClient } from "@/lib/supabase/server";
@@ -7,7 +8,7 @@ import { getViewer } from "./source";
 export const PHOTO_BUCKET = "inventory";
 
 const COLUMNS =
-  "id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
+  "id, name, brand, style_number, type_id, specs, custom_fields, description, print_notes, branding_methods, imprint_areas, cost, location, low_stock_at, photos, inventory_stock (id, colour, size, quantity)";
 
 interface Row {
   id: string;
@@ -19,6 +20,8 @@ interface Row {
   custom_fields: CustomField[];
   description: string | null;
   print_notes: string | null;
+  branding_methods: string[];
+  imprint_areas: unknown;
   cost: number | null;
   location: string | null;
   low_stock_at: number;
@@ -36,6 +39,8 @@ const toProduct = (r: Row, photoUrls: string[]): InventoryProduct => ({
   customFields: r.custom_fields ?? [],
   description: r.description,
   printNotes: r.print_notes,
+  brandingMethods: r.branding_methods ?? [],
+  imprintAreas: readAreas(r.imprint_areas),
   cost: r.cost === null ? null : Number(r.cost),
   location: r.location,
   lowStockAt: r.low_stock_at,
@@ -54,7 +59,12 @@ const PREVIEW: InventoryProduct[] = [
     specs: { style: "Pullover hoodie", fabric: "50% cotton / 50% polyester", gsm: 271, pilling: "3 – Some pilling", fit: "Classic", season: "All-season" },
     customFields: [{ label: "Pre-press", value: "5 seconds" }],
     description: "Classic crew hoodie, front pouch pocket.",
-    printNotes: "DTF and screen print both fine. Pre-press 5 s.",
+    printNotes: "Pre-press 5 s.",
+    brandingMethods: ["DTF transfer", "Screen print"],
+    imprintAreas: [
+      { location: "Full front", maxSize: "12 × 14 in", method: "" },
+      { location: "Left chest", maxSize: "4 × 4 in", method: "DTF transfer" },
+    ],
     cost: 14.5,
     location: "Shelf A2",
     lowStockAt: 3,
@@ -75,6 +85,8 @@ const PREVIEW: InventoryProduct[] = [
     customFields: [],
     description: null,
     printNotes: null,
+    brandingMethods: ["DTF transfer"],
+    imprintAreas: [],
     cost: 6.25,
     location: "Shelf B1",
     lowStockAt: 0,

@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { PHOTO_BUCKET } from "@/lib/data/inventory";
+import { parseBranding } from "@/lib/branding";
 import { readSpecsForm } from "@/lib/data/product-types";
 import { getViewer } from "@/lib/data/source";
 import { normalizeSize } from "@/lib/inventory";
@@ -58,6 +59,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   return run(async (db) => {
     const { data: prev } = await db.from("inventory_products").select("specs").eq("id", id).maybeSingle();
     const specs = await readSpecsForm(db, formData, prev?.specs ?? {});
+    const branding = parseBranding(formData);
     return db
       .from("inventory_products")
       .update({
@@ -67,6 +69,8 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
         style_number: text(formData, "style_number", 60),
         description: text(formData, "description", 2000),
         print_notes: text(formData, "print_notes", 1000),
+        branding_methods: branding.methods,
+        imprint_areas: branding.areas,
         cost: String(formData.get("cost") ?? "").trim() && Number.isFinite(cost) && cost >= 0 ? cost : null,
         location: text(formData, "location", 80),
         low_stock_at: Number.isInteger(low) && low >= 0 ? low : 0,
